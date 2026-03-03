@@ -100,8 +100,8 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		SType:              vk.StructureTypeApplicationInfo,
 		ApiVersion:         vk.MakeVersion(1, 0, 0),
 		ApplicationVersion: vk.MakeVersion(1, 0, 0),
-		PApplicationName:   appName + "\x00",
-		PEngineName:        "no engine" + "\x00",
+		PApplicationName:   []byte(appName + "\x00"),
+		PEngineName:        []byte("no engine\x00"),
 	}
 
 	// Phase 1: vk.CreateInstance with vk.InstanceCreateInfo
@@ -320,7 +320,7 @@ func DrawFrame(device vk.Device, queue vk.Queue, s VulkanSwapchainInfo, r Vulkan
 	}
 
 	const timeoutNano = 10 * 1000 * 1000 * 1000 // 10 sec
-	err = vk.Error(vk.WaitForFences(device, 1, r.fences, vk.True, timeoutNano))
+	err = vk.Error(vk.WaitForFences(device, 1, r.fences, vk.Bool32(vk.True), timeoutNano))
 	if err != nil {
 		err = fmt.Errorf("vk.WaitForFences failed with %s", err)
 		slog.Warn(err.Error())

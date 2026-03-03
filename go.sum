@@ -1,4 +1,4 @@
-github.com/tomas-mraz/vulkan v0.0.0-20250718111449-7cdec55a4f76 h1:K8bkiJ/xlBhqE48Wcg86idMSz/+FZWNsDsoUzrvHC8I=
-github.com/tomas-mraz/vulkan v0.0.0-20250718111449-7cdec55a4f76/go.mod h1:DenbtB0Mynf6HTfN4PkMsmFWwtpoYa4xx00YdR5L8Fc=
+github.com/tomas-mraz/vulkan v0.0.0-20260302163649-29164841ac4c h1:c4IafkVSdbC7Dnp+SV01W92mzKZw/QduiKrOnC8ppUI=
+github.com/tomas-mraz/vulkan v0.0.0-20260302163649-29164841ac4c/go.mod h1:DenbtB0Mynf6HTfN4PkMsmFWwtpoYa4xx00YdR5L8Fc=
 github.com/xlab/linmath v0.0.0-20220922225318-40b6290c3b40 h1:FmU7+0eD5GaZzxlbNxVMiC7th7/7qHtskrkWt0ltFkU=
 github.com/xlab/linmath v0.0.0-20220922225318-40b6290c3b40/go.mod h1:W1rLjlRa7JX2fcoZ4tb3ZkxuwI6pEX/JkDLPxe1/R1g=

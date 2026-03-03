@@ -52,13 +52,13 @@ func NewGraphicsPipeline(device vk.Device, displaySize vk.Extent2D, renderPass v
 			SType:  vk.StructureTypePipelineShaderStageCreateInfo,
 			Stage:  vk.ShaderStageVertexBit,
 			Module: vertexShader,
-			PName:  "main\x00",
+			PName:  []byte("main\x00"),
 		},
 		{
 			SType:  vk.StructureTypePipelineShaderStageCreateInfo,
 			Stage:  vk.ShaderStageFragmentBit,
 			Module: fragmentShader,
-			PName:  "main\x00",
+			PName:  []byte("main\x00"),
 		},
 	}
 
