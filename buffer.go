@@ -55,8 +55,7 @@ func NewBuffer(device vk.Device, gpu vk.PhysicalDevice) (VulkanBufferInfo, error
 		AllocationSize:  memReq.Size,
 		MemoryTypeIndex: 0, // see below
 	}
-	allocInfo.MemoryTypeIndex, _ = vk.FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits,
-		vk.MemoryPropertyHostVisibleBit)
+	allocInfo.MemoryTypeIndex, _ = vk.FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit) //FIXME
 
 	// Phase 3: vk.AllocateMemory
 	//			vk.MapMemory

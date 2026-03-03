@@ -66,7 +66,7 @@ func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, w
 		swap.DisplaySize = windowSize
 		slog.Debug("[wayland specific] surface extent size is not set, using window size")
 	} else if surfaceCapabilities.CurrentExtent.Width == 0 && surfaceCapabilities.CurrentExtent.Height == 0 {
-		// Android specific not yet ready surface
+		// Android-specific not yet ready surface
 		swap.DisplaySize = windowSize
 		slog.Debug("[android specific] surface extent size is 0x0, using window size")
 	} else {
@@ -173,7 +173,7 @@ func (s *VulkanSwapchainInfo) CreateFramebuffers(renderPass vk.RenderPass, depth
 			SType:           vk.StructureTypeFramebufferCreateInfo,
 			RenderPass:      renderPass,
 			Layers:          1,
-			AttachmentCount: 1, // 2 if has depthView
+			AttachmentCount: 1, // 2 if it has depthView
 			PAttachments:    attachments,
 			Width:           s.DisplaySize.Width,
 			Height:          s.DisplaySize.Height,

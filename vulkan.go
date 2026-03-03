@@ -202,12 +202,11 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		vk.DestroyInstance(vo.Instance, nil)
 		err = fmt.Errorf("vk.CreateDevice failed with %s", err)
 		return vo, err
-	} else {
-		vo.Device = device
-		var queue vk.Queue
-		vk.GetDeviceQueue(device, 0, 0, &queue)
-		vo.Queue = queue
 	}
+	vo.Device = device
+	var queue vk.Queue
+	vk.GetDeviceQueue(device, 0, 0, &queue)
+	vo.Queue = queue
 
 	if debug {
 		// Phase 4: vk.CreateDebugReportCallback
@@ -284,16 +283,17 @@ func DrawFrame(device vk.Device, queue vk.Queue, s VulkanSwapchainInfo, r Vulkan
 
 	// Phase 1: vk.AcquireNextImage
 	// 			get the framebuffer index we should draw in
-	//
-	//			N.B. non-infinite timeouts may be not yet implemented
-	//			by your Vulkan driver
+	//			N.B. your Vulkan driver may not yet implement non-infinite timeouts
 
 	ret := vk.AcquireNextImage(device, s.DefaultSwapchain(), vk.MaxUint64, r.DefaultSemaphore(), vk.NullFence, &nextIdx)
 	if ret == vk.Suboptimal || ret == vk.ErrorOutOfDate {
 		slog.Warn("vk.AcquireNextImage returned Suboptimal or ErrorOutOfDate")
 	}
 	if !(ret == vk.Success || ret == vk.Suboptimal) {
-		slog.Error(vk.Error(ret).Error())
+		vkErr := vk.Error(ret)
+		if vkErr != nil {
+			slog.Error(vkErr.Error())
+		}
 		return false
 	}
 
@@ -320,7 +320,7 @@ func DrawFrame(device vk.Device, queue vk.Queue, s VulkanSwapchainInfo, r Vulkan
 	}
 
 	const timeoutNano = 10 * 1000 * 1000 * 1000 // 10 sec
-	err = vk.Error(vk.WaitForFences(device, 1, r.fences, vk.Bool32(vk.True), timeoutNano))
+	err = vk.Error(vk.WaitForFences(device, 1, r.fences, vk.True, timeoutNano))
 	if err != nil {
 		err = fmt.Errorf("vk.WaitForFences failed with %s", err)
 		slog.Warn(err.Error())
@@ -341,7 +341,10 @@ func DrawFrame(device vk.Device, queue vk.Queue, s VulkanSwapchainInfo, r Vulkan
 		slog.Error("vk.QueuePresent returned Suboptimal or ErrorOutOfDate")
 	}
 	if ret2 != vk.Success {
-		slog.Error(vk.Error(ret2).Error())
+		vkErr := vk.Error(ret2)
+		if vkErr != nil {
+			slog.Error(vkErr.Error())
+		}
 		return false
 	}
 	return true
