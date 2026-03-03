@@ -90,7 +90,7 @@ func dbgCallbackFunc(flags vk.DebugReportFlags, objectType vk.DebugReportObjectT
 	default:
 		slog.Warn(fmt.Sprintf("unknown debug message %d (layer %s)", messageCode, pLayerPrefix))
 	}
-	return vk.Bool32(vk.False)
+	return vk.False
 }
 
 // NewDevice create the main Vulkan object holding references to all parts of the Vulkan API
@@ -131,27 +131,29 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		EnabledLayerCount:       uint32(len(instanceLayers)),
 		PpEnabledLayerNames:     instanceLayers,
 	}
-	var vo Vulkan
+	vo := Vulkan{}
 	err := vk.Error(vk.CreateInstance(&instanceCreateInfo, nil, &vo.Instance))
 	if err != nil {
 		err = fmt.Errorf("vk.CreateInstance failed with %s", err)
 		return vo, err
-	} else {
-		vk.InitInstance(vo.Instance) // used by MoltenVK
+	}
+	err = vk.InitInstance(vo.Instance)
+	if err != nil {
+		return Vulkan{}, err
 	}
 
 	vo.Surface, err = createSurfaceFunc(vo.Instance, window) // Android use a different way to get surface
 	if err != nil {
 		vk.DestroyInstance(vo.Instance, nil)
 		err = fmt.Errorf("create surface failed with %s", err)
-		return vo, err
+		return Vulkan{}, err
 	}
 	var gpuDevices []vk.PhysicalDevice
 	if gpuDevices, err = getPhysicalDevices(vo.Instance); err != nil {
 		gpuDevices = nil
 		vk.DestroySurface(vo.Instance, vo.Surface, nil)
 		vk.DestroyInstance(vo.Instance, nil)
-		return vo, err
+		return Vulkan{}, err
 	}
 
 	slog.Debug(fmt.Sprintf("Found %d GPUs", len(gpuDevices)))
@@ -171,11 +173,9 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 
 	// ANDROID:
 	// these layers must be included in APK,
-	// see Android.mk and ValidationLayers.mk
-	deviceLayers := []string{
-		//"VK_LAYER_KHRONOS_validation\x00",
-		// "VK_LAYER_LUNARG_api_dump\x00",
-	}
+	// "VK_LAYER_KHRONOS_validation\x00",
+	// "VK_LAYER_LUNARG_api_dump\x00",
+	deviceLayers := make([]string, 0)
 
 	queueCreateInfos := []vk.DeviceQueueCreateInfo{{
 		SType:            vk.StructureTypeDeviceQueueCreateInfo,
