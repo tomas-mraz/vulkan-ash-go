@@ -35,7 +35,7 @@ func NewExtentSize(width, height int) vk.Extent2D {
 	}
 }
 
-func getDeviceExtensions(gpu vk.PhysicalDevice) (extNames []string) {
+func GetDeviceExtensions(gpu vk.PhysicalDevice) (extNames []string) {
 	var deviceExtLen uint32
 	ret := vk.EnumerateDeviceExtensionProperties(gpu, "", &deviceExtLen, nil)
 	check(ret, "vk.EnumerateDeviceExtensionProperties")
@@ -170,7 +170,7 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 	}
 
 	vo.GpuDevice = gpuDevices[0] //FIXME select GPU device
-	existingExtensions = getDeviceExtensions(vo.GpuDevice)
+	existingExtensions = GetDeviceExtensions(vo.GpuDevice)
 	slog.Debug(fmt.Sprintf("Device extensions: %v", existingExtensions))
 
 	// Phase 3: vk.CreateDevice with vk.DeviceCreateInfo (a logical device)
