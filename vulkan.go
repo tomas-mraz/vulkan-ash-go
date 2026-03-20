@@ -97,8 +97,20 @@ func dbgCallbackFunc(flags vk.DebugReportFlags, objectType vk.DebugReportObjectT
 	return vk.False
 }
 
+// DeviceOptions configures device creation for NewDeviceWithOptions.
+type DeviceOptions struct {
+	DeviceExtensions []string
+	PNextChain       unsafe.Pointer // pNext chain for VkDeviceCreateInfo
+	EnabledFeatures  *vk.PhysicalDeviceFeatures
+}
+
 // NewDevice create the main Vulkan object holding references to all parts of the Vulkan API
 func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc func(instance vk.Instance, window uintptr) (vk.Surface, error), window uintptr) (Vulkan, error) {
+	return NewDeviceWithOptions(appName, instanceExtensions, createSurfaceFunc, window, nil)
+}
+
+// NewDeviceWithOptions creates a Vulkan device with custom options for extensions and features.
+func NewDeviceWithOptions(appName string, instanceExtensions []string, createSurfaceFunc func(instance vk.Instance, window uintptr) (vk.Surface, error), window uintptr, opts *DeviceOptions) (Vulkan, error) {
 
 	var appInfo = &vk.ApplicationInfo{
 		SType:              vk.StructureTypeApplicationInfo,
@@ -189,6 +201,11 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 	deviceExtensions := []string{
 		"VK_KHR_swapchain\x00",
 	}
+	if opts != nil {
+		for _, ext := range opts.DeviceExtensions {
+			deviceExtensions = append(deviceExtensions, ext)
+		}
+	}
 	deviceCreateInfo := vk.DeviceCreateInfo{
 		SType:                   vk.StructureTypeDeviceCreateInfo,
 		QueueCreateInfoCount:    uint32(len(queueCreateInfos)),
@@ -197,6 +214,12 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		PpEnabledExtensionNames: deviceExtensions,
 		EnabledLayerCount:       uint32(len(deviceLayers)),
 		PpEnabledLayerNames:     deviceLayers,
+	}
+	if opts != nil && opts.PNextChain != nil {
+		deviceCreateInfo.PNext = opts.PNextChain
+	}
+	if opts != nil && opts.EnabledFeatures != nil {
+		deviceCreateInfo.PEnabledFeatures = []vk.PhysicalDeviceFeatures{*opts.EnabledFeatures}
 	}
 	var device vk.Device // we choose the first GPU available for this device
 	err = vk.Error(vk.CreateDevice(vo.GpuDevice, &deviceCreateInfo, nil, &device))
