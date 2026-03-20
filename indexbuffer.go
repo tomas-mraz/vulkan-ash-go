@@ -17,14 +17,26 @@ type VulkanIndexBufferInfo struct {
 
 // NewIndexBuffer creates an index buffer from uint16 index data.
 func NewIndexBuffer(device vk.Device, gpu vk.PhysicalDevice, indices []uint16) (VulkanIndexBufferInfo, error) {
+	dataSize := len(indices) * 2
+	data := unsafe.Slice((*byte)(unsafe.Pointer(&indices[0])), dataSize)
+	return newIndexBufferFromBytes(device, gpu, data, uint32(len(indices)))
+}
+
+// NewIndexBuffer32 creates an index buffer from uint32 index data.
+func NewIndexBuffer32(device vk.Device, gpu vk.PhysicalDevice, indices []uint32) (VulkanIndexBufferInfo, error) {
+	dataSize := len(indices) * 4
+	data := unsafe.Slice((*byte)(unsafe.Pointer(&indices[0])), dataSize)
+	return newIndexBufferFromBytes(device, gpu, data, uint32(len(indices)))
+}
+
+func newIndexBufferFromBytes(device vk.Device, gpu vk.PhysicalDevice, data []byte, count uint32) (VulkanIndexBufferInfo, error) {
 	var ib VulkanIndexBufferInfo
 	ib.device = device
-	ib.count = uint32(len(indices))
-	dataSize := len(indices) * 2 // uint16 = 2 bytes
+	ib.count = count
 
 	err := vk.Error(vk.CreateBuffer(device, &vk.BufferCreateInfo{
 		SType:                 vk.StructureTypeBufferCreateInfo,
-		Size:                  vk.DeviceSize(dataSize),
+		Size:                  vk.DeviceSize(len(data)),
 		Usage:                 vk.BufferUsageFlags(vk.BufferUsageIndexBufferBit),
 		SharingMode:           vk.SharingModeExclusive,
 		QueueFamilyIndexCount: 1,
@@ -49,8 +61,8 @@ func NewIndexBuffer(device vk.Device, gpu vk.PhysicalDevice, indices []uint16) (
 	}
 
 	var ptr unsafe.Pointer
-	vk.MapMemory(device, ib.mem, 0, vk.DeviceSize(dataSize), 0, &ptr)
-	vk.Memcopy(ptr, unsafe.Slice((*byte)(unsafe.Pointer(&indices[0])), dataSize))
+	vk.MapMemory(device, ib.mem, 0, vk.DeviceSize(len(data)), 0, &ptr)
+	vk.Memcopy(ptr, data)
 	vk.UnmapMemory(device, ib.mem)
 
 	err = vk.Error(vk.BindBufferMemory(device, ib.buffer, ib.mem, 0))
