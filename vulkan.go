@@ -102,6 +102,7 @@ type DeviceOptions struct {
 	DeviceExtensions []string
 	PNextChain       unsafe.Pointer // pNext chain for VkDeviceCreateInfo
 	EnabledFeatures  *vk.PhysicalDeviceFeatures
+	ApiVersion       uint32 // Vulkan API version, e.g. vk.MakeVersion(1,2,0). 0 defaults to 1.0.
 }
 
 // NewDevice create the main Vulkan object holding references to all parts of the Vulkan API
@@ -112,9 +113,13 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 // NewDeviceWithOptions creates a Vulkan device with custom options for extensions and features.
 func NewDeviceWithOptions(appName string, instanceExtensions []string, createSurfaceFunc func(instance vk.Instance, window uintptr) (vk.Surface, error), window uintptr, opts *DeviceOptions) (Vulkan, error) {
 
+	apiVersion := vk.MakeVersion(1, 0, 0)
+	if opts != nil && opts.ApiVersion != 0 {
+		apiVersion = opts.ApiVersion
+	}
 	var appInfo = &vk.ApplicationInfo{
 		SType:              vk.StructureTypeApplicationInfo,
-		ApiVersion:         vk.MakeVersion(1, 0, 0),
+		ApiVersion:         apiVersion,
 		ApplicationVersion: vk.MakeVersion(1, 0, 0),
 		PApplicationName:   []byte(appName + "\x00"),
 		PEngineName:        []byte("no engine\x00"),

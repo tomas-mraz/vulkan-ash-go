@@ -81,7 +81,7 @@ func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, w
 		ImageFormat:      formats[chosenFormat].Format,
 		ImageColorSpace:  formats[chosenFormat].ColorSpace,
 		ImageExtent:      swap.DisplaySize,
-		ImageUsage:       vk.ImageUsageFlags(vk.ImageUsageColorAttachmentBit),
+		ImageUsage:       vk.ImageUsageFlags(vk.ImageUsageColorAttachmentBit | vk.ImageUsageTransferDstBit),
 		PreTransform:     vk.SurfaceTransformIdentityBit,
 		CompositeAlpha:   vk.CompositeAlphaOpaqueBit,
 		ImageArrayLayers: 1,
@@ -192,8 +192,12 @@ func (s *VulkanSwapchainInfo) CreateFramebuffers(renderPass vk.RenderPass, depth
 
 func (s *VulkanSwapchainInfo) Destroy() {
 	for i := uint32(0); i < s.DefaultSwapchainLen(); i++ {
-		vk.DestroyFramebuffer(s.Device, s.Framebuffers[i], nil)
-		vk.DestroyImageView(s.Device, s.DisplayViews[i], nil)
+		if i < uint32(len(s.Framebuffers)) {
+			vk.DestroyFramebuffer(s.Device, s.Framebuffers[i], nil)
+		}
+		if i < uint32(len(s.DisplayViews)) {
+			vk.DestroyImageView(s.Device, s.DisplayViews[i], nil)
+		}
 	}
 	s.Framebuffers = nil
 	s.DisplayViews = nil
