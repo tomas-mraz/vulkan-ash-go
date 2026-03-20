@@ -78,6 +78,14 @@ func (r *VulkanRenderInfo) CreateCommandBuffers(n uint32) error {
 	return nil
 }
 
+func (r *VulkanRenderInfo) GetCmdPool() vk.CommandPool {
+	return r.cmdPool
+}
+
+func (r *VulkanRenderInfo) GetCmdBuffers() []vk.CommandBuffer {
+	return r.cmdBuffers
+}
+
 func (r *VulkanRenderInfo) DefaultFence() vk.Fence {
 	return r.fences[0]
 }

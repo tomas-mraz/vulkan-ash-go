@@ -16,11 +16,15 @@ type Vulkan struct {
 	Surface   vk.Surface
 	GpuDevice vk.PhysicalDevice
 	Queue     vk.Queue
-	dbg       vk.DebugReportCallback
+	dbg vk.DebugReportCallback
 }
 
 func SetDebug(state bool) {
 	debug = state
+}
+
+func (v *Vulkan) GetDebugCallback() vk.DebugReportCallback {
+	return v.dbg
 }
 
 // NewExtentSize needs for Wayland
@@ -359,7 +363,7 @@ func DestroyInOrder(v *Vulkan, swapchain *VulkanSwapchainInfo, r *VulkanRenderIn
 	vk.DestroyRenderPass(v.Device, r.RenderPass, nil)
 	vk.DestroySemaphore(v.Device, r.DefaultSemaphore(), nil)
 	vk.DestroyFence(v.Device, r.DefaultFence(), nil)
-	vk.FreeMemory(v.Device, buffer.getDeviceMemory(), nil)
+	vk.FreeMemory(v.Device, buffer.GetDeviceMemory(), nil)
 
 	swapchain.Destroy()
 	gfx.Destroy()
