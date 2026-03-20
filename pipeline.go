@@ -6,6 +6,19 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
+// PipelineOptions configures optional pipeline parameters.
+type PipelineOptions struct {
+	// VertShaderData is raw SPIR-V bytecode for the vertex shader.
+	// If nil, the default embedded shader "shaders/tri-vert.spv" is used.
+	VertShaderData []byte
+	// FragShaderData is raw SPIR-V bytecode for the fragment shader.
+	// If nil, the default embedded shader "shaders/tri-frag.spv" is used.
+	FragShaderData []byte
+	// PushConstantRanges defines push constant ranges for the pipeline layout.
+	// If nil, no push constants are used.
+	PushConstantRanges []vk.PushConstantRange
+}
+
 type VulkanGfxPipelineInfo struct {
 	device   vk.Device
 	layout   vk.PipelineLayout
@@ -13,36 +26,45 @@ type VulkanGfxPipelineInfo struct {
 	pipeline vk.Pipeline
 }
 
+// NewGraphicsPipeline creates a graphics pipeline using default embedded shaders and no push constants.
 func NewGraphicsPipeline(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass) (VulkanGfxPipelineInfo, error) {
+	return NewGraphicsPipelineWithOptions(device, displaySize, renderPass, PipelineOptions{})
+}
 
+// NewGraphicsPipelineWithOptions creates a graphics pipeline with custom shaders and push constants.
+func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass, opts PipelineOptions) (VulkanGfxPipelineInfo, error) {
 	var gfxPipeline VulkanGfxPipelineInfo
 
-	// Phase 1: vk.CreatePipelineLayout
-	//			create pipeline layout (empty)
-
+	// Pipeline layout
 	pipelineLayoutCreateInfo := vk.PipelineLayoutCreateInfo{
-		SType: vk.StructureTypePipelineLayoutCreateInfo,
+		SType:                  vk.StructureTypePipelineLayoutCreateInfo,
+		PushConstantRangeCount: uint32(len(opts.PushConstantRanges)),
+		PPushConstantRanges:    opts.PushConstantRanges,
 	}
 	err := vk.Error(vk.CreatePipelineLayout(device, &pipelineLayoutCreateInfo, nil, &gfxPipeline.layout))
 	if err != nil {
 		err = fmt.Errorf("vk.CreatePipelineLayout failed with %s", err)
 		return gfxPipeline, err
 	}
-	dynamicState := vk.PipelineDynamicStateCreateInfo{
-		SType: vk.StructureTypePipelineDynamicStateCreateInfo,
-		// no dynamic state for this demo
+
+	// Load shaders
+	var vertexShader, fragmentShader vk.ShaderModule
+	if opts.VertShaderData != nil {
+		vertexShader, err = LoadShaderFromBytes(device, opts.VertShaderData)
+	} else {
+		vertexShader, err = LoadShader(device, "shaders/tri-vert.spv")
 	}
-
-	// Phase 2: load shaders and specify shader stages
-
-	vertexShader, err := LoadShader(device, "shaders/tri-vert.spv")
-	if err != nil { // err has enough info
+	if err != nil {
 		return gfxPipeline, err
 	}
 	defer vk.DestroyShaderModule(device, vertexShader, nil)
 
-	fragmentShader, err := LoadShader(device, "shaders/tri-frag.spv")
-	if err != nil { // err has enough info
+	if opts.FragShaderData != nil {
+		fragmentShader, err = LoadShaderFromBytes(device, opts.FragShaderData)
+	} else {
+		fragmentShader, err = LoadShader(device, "shaders/tri-frag.spv")
+	}
+	if err != nil {
 		return gfxPipeline, err
 	}
 	defer vk.DestroyShaderModule(device, fragmentShader, nil)
@@ -62,8 +84,7 @@ func NewGraphicsPipeline(device vk.Device, displaySize vk.Extent2D, renderPass v
 		},
 	}
 
-	// Phase 3: specify viewport state
-
+	// Viewport
 	viewports := []vk.Viewport{{
 		MinDepth: 0.0,
 		MaxDepth: 1.0,
@@ -86,10 +107,7 @@ func NewGraphicsPipeline(device vk.Device, displaySize vk.Extent2D, renderPass v
 		PScissors:     scissors,
 	}
 
-	// Phase 4: specify multisample state
-	//					color blend state
-	//					rasterizer state
-
+	// Fixed function state
 	sampleMask := []vk.SampleMask{vk.SampleMask(vk.MaxUint32)}
 	multisampleState := vk.PipelineMultisampleStateCreateInfo{
 		SType:                vk.StructureTypePipelineMultisampleStateCreateInfo,
@@ -97,7 +115,7 @@ func NewGraphicsPipeline(device vk.Device, displaySize vk.Extent2D, renderPass v
 		SampleShadingEnable:  vk.False,
 		PSampleMask:          sampleMask,
 	}
-	attachmentStates := []vk.PipelineColorBlendAttachmentState{{
+	colorBlendAttachment := []vk.PipelineColorBlendAttachmentState{{
 		ColorWriteMask: vk.ColorComponentFlags(
 			vk.ColorComponentRBit | vk.ColorComponentGBit |
 				vk.ColorComponentBBit | vk.ColorComponentABit,
@@ -109,7 +127,7 @@ func NewGraphicsPipeline(device vk.Device, displaySize vk.Extent2D, renderPass v
 		LogicOpEnable:   vk.False,
 		LogicOp:         vk.LogicOpCopy,
 		AttachmentCount: 1,
-		PAttachments:    attachmentStates,
+		PAttachments:    colorBlendAttachment,
 	}
 	rasterState := vk.PipelineRasterizationStateCreateInfo{
 		SType:                   vk.StructureTypePipelineRasterizationStateCreateInfo,
@@ -121,10 +139,6 @@ func NewGraphicsPipeline(device vk.Device, displaySize vk.Extent2D, renderPass v
 		DepthBiasEnable:         vk.False,
 		LineWidth:               1,
 	}
-
-	// Phase 5: specify input assembly state
-	//					vertex input state and attributes
-
 	inputAssemblyState := vk.PipelineInputAssemblyStateCreateInfo{
 		SType:                  vk.StructureTypePipelineInputAssemblyStateCreateInfo,
 		Topology:               vk.PrimitiveTopologyTriangleList,
@@ -148,10 +162,11 @@ func NewGraphicsPipeline(device vk.Device, displaySize vk.Extent2D, renderPass v
 		VertexAttributeDescriptionCount: 1,
 		PVertexAttributeDescriptions:    vertexInputAttributes,
 	}
+	dynamicState := vk.PipelineDynamicStateCreateInfo{
+		SType: vk.StructureTypePipelineDynamicStateCreateInfo,
+	}
 
-	// Phase 5: vk.CreatePipelineCache
-	//			vk.CreateGraphicsPipelines
-
+	// Pipeline cache and creation
 	pipelineCacheInfo := vk.PipelineCacheCreateInfo{
 		SType: vk.StructureTypePipelineCacheCreateInfo,
 	}
@@ -184,6 +199,14 @@ func NewGraphicsPipeline(device vk.Device, displaySize vk.Extent2D, renderPass v
 	gfxPipeline.pipeline = pipelines[0]
 	gfxPipeline.device = device
 	return gfxPipeline, nil
+}
+
+func (gfx *VulkanGfxPipelineInfo) GetLayout() vk.PipelineLayout {
+	return gfx.layout
+}
+
+func (gfx *VulkanGfxPipelineInfo) GetPipeline() vk.Pipeline {
+	return gfx.pipeline
 }
 
 func (gfx *VulkanGfxPipelineInfo) Destroy() {
