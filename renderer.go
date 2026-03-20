@@ -15,48 +15,95 @@ type VulkanRenderInfo struct {
 	fences     []vk.Fence
 }
 
+// NewRenderer creates a renderer with a single color attachment in the render pass.
 func NewRenderer(device vk.Device, displayFormat vk.Format) (VulkanRenderInfo, error) {
-	attachmentDescriptions := []vk.AttachmentDescription{{
-		Format:         displayFormat,
-		Samples:        vk.SampleCount1Bit,
-		LoadOp:         vk.AttachmentLoadOpClear,
-		StoreOp:        vk.AttachmentStoreOpStore,
-		StencilLoadOp:  vk.AttachmentLoadOpDontCare,
-		StencilStoreOp: vk.AttachmentStoreOpDontCare,
-		InitialLayout:  vk.ImageLayoutUndefined,
-		FinalLayout:    vk.ImageLayoutPresentSrc,
-	}}
-	colorAttachments := []vk.AttachmentReference{{
+	colorRef := []vk.AttachmentReference{{
 		Attachment: 0,
 		Layout:     vk.ImageLayoutColorAttachmentOptimal,
 	}}
-	subpassDescriptions := []vk.SubpassDescription{{
-		PipelineBindPoint:    vk.PipelineBindPointGraphics,
-		ColorAttachmentCount: 1,
-		PColorAttachments:    colorAttachments,
-	}}
-	renderPassCreateInfo := vk.RenderPassCreateInfo{
+	rpInfo := vk.RenderPassCreateInfo{
 		SType:           vk.StructureTypeRenderPassCreateInfo,
 		AttachmentCount: 1,
-		PAttachments:    attachmentDescriptions,
-		SubpassCount:    1,
-		PSubpasses:      subpassDescriptions,
+		PAttachments: []vk.AttachmentDescription{{
+			Format:         displayFormat,
+			Samples:        vk.SampleCount1Bit,
+			LoadOp:         vk.AttachmentLoadOpClear,
+			StoreOp:        vk.AttachmentStoreOpStore,
+			StencilLoadOp:  vk.AttachmentLoadOpDontCare,
+			StencilStoreOp: vk.AttachmentStoreOpDontCare,
+			InitialLayout:  vk.ImageLayoutUndefined,
+			FinalLayout:    vk.ImageLayoutPresentSrc,
+		}},
+		SubpassCount: 1,
+		PSubpasses: []vk.SubpassDescription{{
+			PipelineBindPoint:    vk.PipelineBindPointGraphics,
+			ColorAttachmentCount: 1,
+			PColorAttachments:    colorRef,
+		}},
+	}
+	return createRenderer(device, rpInfo)
+}
+
+// NewRendererWithDepth creates a renderer with color + depth attachments in the render pass.
+func NewRendererWithDepth(device vk.Device, displayFormat vk.Format, depthFormat vk.Format) (VulkanRenderInfo, error) {
+	colorRef := []vk.AttachmentReference{{
+		Attachment: 0,
+		Layout:     vk.ImageLayoutColorAttachmentOptimal,
+	}}
+	rpInfo := vk.RenderPassCreateInfo{
+		SType:           vk.StructureTypeRenderPassCreateInfo,
+		AttachmentCount: 2,
+		PAttachments: []vk.AttachmentDescription{
+			{
+				Format:         displayFormat,
+				Samples:        vk.SampleCount1Bit,
+				LoadOp:         vk.AttachmentLoadOpClear,
+				StoreOp:        vk.AttachmentStoreOpStore,
+				StencilLoadOp:  vk.AttachmentLoadOpDontCare,
+				StencilStoreOp: vk.AttachmentStoreOpDontCare,
+				InitialLayout:  vk.ImageLayoutUndefined,
+				FinalLayout:    vk.ImageLayoutPresentSrc,
+			},
+			{
+				Format:         depthFormat,
+				Samples:        vk.SampleCount1Bit,
+				LoadOp:         vk.AttachmentLoadOpClear,
+				StoreOp:        vk.AttachmentStoreOpDontCare,
+				StencilLoadOp:  vk.AttachmentLoadOpDontCare,
+				StencilStoreOp: vk.AttachmentStoreOpDontCare,
+				InitialLayout:  vk.ImageLayoutUndefined,
+				FinalLayout:    vk.ImageLayoutDepthStencilAttachmentOptimal,
+			},
+		},
+		SubpassCount: 1,
+		PSubpasses: []vk.SubpassDescription{{
+			PipelineBindPoint:    vk.PipelineBindPointGraphics,
+			ColorAttachmentCount: 1,
+			PColorAttachments:    colorRef,
+			PDepthStencilAttachment: &vk.AttachmentReference{
+				Attachment: 1,
+				Layout:     vk.ImageLayoutDepthStencilAttachmentOptimal,
+			},
+		}},
+	}
+	return createRenderer(device, rpInfo)
+}
+
+// createRenderer creates a render pass from the given configuration and a command pool.
+func createRenderer(device vk.Device, renderPassInfo vk.RenderPassCreateInfo) (VulkanRenderInfo, error) {
+	var r VulkanRenderInfo
+	err := vk.Error(vk.CreateRenderPass(device, &renderPassInfo, nil, &r.RenderPass))
+	if err != nil {
+		return r, fmt.Errorf("vk.CreateRenderPass failed with %s", err)
 	}
 	cmdPoolCreateInfo := vk.CommandPoolCreateInfo{
 		SType:            vk.StructureTypeCommandPoolCreateInfo,
 		Flags:            vk.CommandPoolCreateFlags(vk.CommandPoolCreateResetCommandBufferBit),
 		QueueFamilyIndex: 0,
 	}
-	var r VulkanRenderInfo
-	err := vk.Error(vk.CreateRenderPass(device, &renderPassCreateInfo, nil, &r.RenderPass))
-	if err != nil {
-		err = fmt.Errorf("vk.CreateRenderPass failed with %s", err)
-		return r, err
-	}
 	err = vk.Error(vk.CreateCommandPool(device, &cmdPoolCreateInfo, nil, &r.cmdPool))
 	if err != nil {
-		err = fmt.Errorf("vk.CreateCommandPool failed with %s", err)
-		return r, err
+		return r, fmt.Errorf("vk.CreateCommandPool failed with %s", err)
 	}
 	r.device = device
 	return r, nil
@@ -72,8 +119,7 @@ func (r *VulkanRenderInfo) CreateCommandBuffers(n uint32) error {
 	}
 	err := vk.Error(vk.AllocateCommandBuffers(r.device, &cmdBufferAllocateInfo, r.cmdBuffers))
 	if err != nil {
-		err = fmt.Errorf("vk.AllocateCommandBuffers failed with %s", err)
-		return err
+		return fmt.Errorf("vk.AllocateCommandBuffers failed with %s", err)
 	}
 	return nil
 }
