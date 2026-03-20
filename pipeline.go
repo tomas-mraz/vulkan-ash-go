@@ -17,6 +17,17 @@ type PipelineOptions struct {
 	// PushConstantRanges defines push constant ranges for the pipeline layout.
 	// If nil, no push constants are used.
 	PushConstantRanges []vk.PushConstantRange
+	// VertexBindings defines custom vertex input bindings.
+	// If nil, default single binding (stride 12, vec3 position) is used.
+	VertexBindings []vk.VertexInputBindingDescription
+	// VertexAttributes defines custom vertex input attributes.
+	// If nil, default single attribute (location 0, R32G32B32Sfloat) is used.
+	VertexAttributes []vk.VertexInputAttributeDescription
+	// DescriptorSetLayouts defines descriptor set layouts for the pipeline layout.
+	// If nil, no descriptor sets are used.
+	DescriptorSetLayouts []vk.DescriptorSetLayout
+	// DepthTestEnable enables depth testing and writing.
+	DepthTestEnable bool
 }
 
 type VulkanGfxPipelineInfo struct {
@@ -40,6 +51,8 @@ func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, r
 		SType:                  vk.StructureTypePipelineLayoutCreateInfo,
 		PushConstantRangeCount: uint32(len(opts.PushConstantRanges)),
 		PPushConstantRanges:    opts.PushConstantRanges,
+		SetLayoutCount:         uint32(len(opts.DescriptorSetLayouts)),
+		PSetLayouts:            opts.DescriptorSetLayouts,
 	}
 	err := vk.Error(vk.CreatePipelineLayout(device, &pipelineLayoutCreateInfo, nil, &gfxPipeline.layout))
 	if err != nil {
@@ -144,22 +157,28 @@ func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, r
 		Topology:               vk.PrimitiveTopologyTriangleList,
 		PrimitiveRestartEnable: vk.False,
 	}
-	vertexInputBindings := []vk.VertexInputBindingDescription{{
-		Binding:   0,
-		Stride:    3 * 4, // 4 = sizeof(float32)
-		InputRate: vk.VertexInputRateVertex,
-	}}
-	vertexInputAttributes := []vk.VertexInputAttributeDescription{{
-		Binding:  0,
-		Location: 0,
-		Format:   vk.FormatR32g32b32Sfloat,
-		Offset:   0,
-	}}
+	vertexInputBindings := opts.VertexBindings
+	if vertexInputBindings == nil {
+		vertexInputBindings = []vk.VertexInputBindingDescription{{
+			Binding:   0,
+			Stride:    3 * 4,
+			InputRate: vk.VertexInputRateVertex,
+		}}
+	}
+	vertexInputAttributes := opts.VertexAttributes
+	if vertexInputAttributes == nil {
+		vertexInputAttributes = []vk.VertexInputAttributeDescription{{
+			Binding:  0,
+			Location: 0,
+			Format:   vk.FormatR32g32b32Sfloat,
+			Offset:   0,
+		}}
+	}
 	vertexInputState := vk.PipelineVertexInputStateCreateInfo{
 		SType:                           vk.StructureTypePipelineVertexInputStateCreateInfo,
-		VertexBindingDescriptionCount:   1,
+		VertexBindingDescriptionCount:   uint32(len(vertexInputBindings)),
 		PVertexBindingDescriptions:      vertexInputBindings,
-		VertexAttributeDescriptionCount: 1,
+		VertexAttributeDescriptionCount: uint32(len(vertexInputAttributes)),
 		PVertexAttributeDescriptions:    vertexInputAttributes,
 	}
 	dynamicState := vk.PipelineDynamicStateCreateInfo{
@@ -175,9 +194,9 @@ func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, r
 		err = fmt.Errorf("vk.CreatePipelineCache failed with %s", err)
 		return gfxPipeline, err
 	}
-	pipelineCreateInfos := []vk.GraphicsPipelineCreateInfo{{
+	pipelineCreateInfo := vk.GraphicsPipelineCreateInfo{
 		SType:               vk.StructureTypeGraphicsPipelineCreateInfo,
-		StageCount:          2, // vert + frag
+		StageCount:          2,
 		PStages:             shaderStages,
 		PVertexInputState:   &vertexInputState,
 		PInputAssemblyState: &inputAssemblyState,
@@ -188,7 +207,18 @@ func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, r
 		PDynamicState:       &dynamicState,
 		Layout:              gfxPipeline.layout,
 		RenderPass:          renderPass,
-	}}
+	}
+	if opts.DepthTestEnable {
+		pipelineCreateInfo.PDepthStencilState = &vk.PipelineDepthStencilStateCreateInfo{
+			SType:            vk.StructureTypePipelineDepthStencilStateCreateInfo,
+			DepthTestEnable:  vk.True,
+			DepthWriteEnable: vk.True,
+			DepthCompareOp:   vk.CompareOpLessOrEqual,
+			Back:             vk.StencilOpState{FailOp: vk.StencilOpKeep, PassOp: vk.StencilOpKeep, CompareOp: vk.CompareOpAlways},
+			Front:            vk.StencilOpState{FailOp: vk.StencilOpKeep, PassOp: vk.StencilOpKeep, CompareOp: vk.CompareOpAlways},
+		}
+	}
+	pipelineCreateInfos := []vk.GraphicsPipelineCreateInfo{pipelineCreateInfo}
 	pipelines := make([]vk.Pipeline, 1)
 	err = vk.Error(vk.CreateGraphicsPipelines(device,
 		gfxPipeline.cache, 1, pipelineCreateInfos, nil, pipelines))
