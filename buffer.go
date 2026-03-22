@@ -6,7 +6,6 @@ import (
 	"unsafe"
 
 	vk "github.com/tomas-mraz/vulkan"
-	"github.com/xlab/linmath"
 )
 
 type VulkanBufferInfo struct {
@@ -21,7 +20,7 @@ func NewBuffer(device vk.Device, gpu vk.PhysicalDevice) (VulkanBufferInfo, error
 	// Phase 1: vk.CreateBuffer
 	//			create the triangle vertex buffer
 
-	vertexData := linmath.ArrayFloat32([]float32{
+	vertexData := ArrayFloat32([]float32{
 		-1, -1, 0,
 		1, -1, 0,
 		0, 1, 0,
