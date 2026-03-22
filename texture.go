@@ -162,6 +162,10 @@ func TransitionImageLayout(device vk.Device, queue vk.Queue, cmdPool vk.CommandP
 		dstAccess = vk.AccessFlags(vk.AccessShaderReadBit)
 		srcStage = vk.PipelineStageFlags(vk.PipelineStageTransferBit)
 		dstStage = vk.PipelineStageFlags(vk.PipelineStageFragmentShaderBit)
+	case oldLayout == vk.ImageLayoutUndefined && newLayout == vk.ImageLayoutGeneral:
+		dstAccess = vk.AccessFlags(vk.AccessShaderWriteBit)
+		srcStage = vk.PipelineStageFlags(vk.PipelineStageTopOfPipeBit)
+		dstStage = vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit)
 	}
 
 	vk.CmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nil, 0, nil, 1, []vk.ImageMemoryBarrier{{
