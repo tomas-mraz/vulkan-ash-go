@@ -203,8 +203,9 @@ func NewDeviceWithOptions(appName string, instanceExtensions []string, createSur
 		QueueCount:       1,
 		PQueuePriorities: []float32{1.0},
 	}}
-	deviceExtensions := []string{
-		"VK_KHR_swapchain\x00",
+	var deviceExtensions []string
+	if vo.Surface != vk.NullSurface {
+		deviceExtensions = append(deviceExtensions, "VK_KHR_swapchain\x00")
 	}
 	if opts != nil {
 		for _, ext := range opts.DeviceExtensions {
