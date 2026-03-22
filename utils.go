@@ -26,16 +26,6 @@ func MakeCString(s string) string {
 	return s
 }
 
-// LoadShader loads a SPIR-V shader from embedded assets by name.
-func LoadShader(device vk.Device, name string) (vk.ShaderModule, error) {
-	data, err := Asset(name)
-	if err != nil {
-		err := fmt.Errorf("asset %s not found: %s", name, err)
-		return vk.NullShaderModule, err
-	}
-	return LoadShaderFromBytes(device, data)
-}
-
 // LoadShaderFromBytes creates a shader module from raw SPIR-V bytecode.
 func LoadShaderFromBytes(device vk.Device, data []byte) (vk.ShaderModule, error) {
 	var module vk.ShaderModule

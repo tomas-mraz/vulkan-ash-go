@@ -37,11 +37,6 @@ type VulkanGfxPipelineInfo struct {
 	pipeline vk.Pipeline
 }
 
-// NewGraphicsPipeline creates a graphics pipeline using default embedded shaders and no push constants.
-func NewGraphicsPipeline(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass) (VulkanGfxPipelineInfo, error) {
-	return NewGraphicsPipelineWithOptions(device, displaySize, renderPass, PipelineOptions{})
-}
-
 // NewGraphicsPipelineWithOptions creates a graphics pipeline with custom shaders and push constants.
 func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass, opts PipelineOptions) (VulkanGfxPipelineInfo, error) {
 	var gfxPipeline VulkanGfxPipelineInfo
@@ -62,21 +57,19 @@ func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, r
 
 	// Load shaders
 	var vertexShader, fragmentShader vk.ShaderModule
-	if opts.VertShaderData != nil {
-		vertexShader, err = LoadShaderFromBytes(device, opts.VertShaderData)
-	} else {
-		vertexShader, err = LoadShader(device, "shaders/tri-vert.spv")
+	if opts.VertShaderData == nil {
+		return gfxPipeline, fmt.Errorf("VertShaderData is required")
 	}
+	vertexShader, err = LoadShaderFromBytes(device, opts.VertShaderData)
 	if err != nil {
 		return gfxPipeline, err
 	}
 	defer vk.DestroyShaderModule(device, vertexShader, nil)
 
-	if opts.FragShaderData != nil {
-		fragmentShader, err = LoadShaderFromBytes(device, opts.FragShaderData)
-	} else {
-		fragmentShader, err = LoadShader(device, "shaders/tri-frag.spv")
+	if opts.FragShaderData == nil {
+		return gfxPipeline, fmt.Errorf("FragShaderData is required")
 	}
+	fragmentShader, err = LoadShaderFromBytes(device, opts.FragShaderData)
 	if err != nil {
 		return gfxPipeline, err
 	}
