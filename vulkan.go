@@ -3,6 +3,7 @@ package asch
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"unsafe"
 
 	vk "github.com/tomas-mraz/vulkan"
@@ -48,6 +49,31 @@ func GetDeviceExtensions(gpu vk.PhysicalDevice) (extNames []string) {
 			vk.ToString(ext.ExtensionName[:]))
 	}
 	return extNames
+}
+
+// CheckDeviceExtensions returns true if the physical device supports all
+// required extensions. Missing extensions are returned in the second value.
+func CheckDeviceExtensions(gpu vk.PhysicalDevice, required []string) (ok bool, missing []string) {
+	available := make(map[string]struct{})
+	for _, name := range GetDeviceExtensions(gpu) {
+		available[name] = struct{}{}
+	}
+	for _, req := range required {
+		clean := strings.TrimRight(req, "\x00")
+		if _, found := available[clean]; !found {
+			missing = append(missing, clean)
+		}
+	}
+	return len(missing) == 0, missing
+}
+
+// CheckDeviceApiVersion returns true if the physical device supports at least
+// the given Vulkan API version (created via vk.MakeVersion).
+func CheckDeviceApiVersion(gpu vk.PhysicalDevice, minVersion uint32) (ok bool, deviceVersion uint32) {
+	var props vk.PhysicalDeviceProperties
+	vk.GetPhysicalDeviceProperties(gpu, &props)
+	props.Deref()
+	return props.ApiVersion >= minVersion, props.ApiVersion
 }
 
 func getInstanceExtensions() (extNames []string) {
