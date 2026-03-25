@@ -1,4 +1,4 @@
-package asch
+package ash
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ type Vulkan struct {
 	Surface   vk.Surface
 	GpuDevice vk.PhysicalDevice
 	Queue     vk.Queue
-	dbg vk.DebugReportCallback
+	dbg       vk.DebugReportCallback
 }
 
 func SetDebug(state bool) {

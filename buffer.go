@@ -1,4 +1,4 @@
-package asch
+package ash
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 type VulkanBufferInfo struct {
 	device        vk.Device
 	vertexBuffers []vk.Buffer
-	deviceMemory vk.DeviceMemory
+	deviceMemory  vk.DeviceMemory
 }
 
 // NewBuffer creates a vertex buffer with default triangle data.

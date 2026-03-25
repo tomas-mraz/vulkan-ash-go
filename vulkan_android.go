@@ -1,6 +1,6 @@
 //go:build android
 
-package asch
+package ash
 
 import (
 	vk "github.com/tomas-mraz/vulkan"

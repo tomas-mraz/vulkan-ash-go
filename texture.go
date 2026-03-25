@@ -1,4 +1,4 @@
-package asch
+package ash
 
 import (
 	"fmt"
@@ -64,16 +64,16 @@ func NewTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint32, r
 
 	// Create sampler
 	err = vk.Error(vk.CreateSampler(device, &vk.SamplerCreateInfo{
-		SType:        vk.StructureTypeSamplerCreateInfo,
-		MagFilter:    vk.FilterNearest,
-		MinFilter:    vk.FilterNearest,
-		MipmapMode:   vk.SamplerMipmapModeNearest,
-		AddressModeU: vk.SamplerAddressModeClampToEdge,
-		AddressModeV: vk.SamplerAddressModeClampToEdge,
-		AddressModeW: vk.SamplerAddressModeClampToEdge,
+		SType:         vk.StructureTypeSamplerCreateInfo,
+		MagFilter:     vk.FilterNearest,
+		MinFilter:     vk.FilterNearest,
+		MipmapMode:    vk.SamplerMipmapModeNearest,
+		AddressModeU:  vk.SamplerAddressModeClampToEdge,
+		AddressModeV:  vk.SamplerAddressModeClampToEdge,
+		AddressModeW:  vk.SamplerAddressModeClampToEdge,
 		MaxAnisotropy: 1,
-		CompareOp:    vk.CompareOpNever,
-		BorderColor:  vk.BorderColorFloatOpaqueWhite,
+		CompareOp:     vk.CompareOpNever,
+		BorderColor:   vk.BorderColorFloatOpaqueWhite,
 	}, nil, &t.sampler))
 	if err != nil {
 		return t, fmt.Errorf("vk.CreateSampler failed with %s", err)
