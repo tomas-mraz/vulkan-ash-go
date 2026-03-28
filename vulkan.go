@@ -208,7 +208,7 @@ func NewDeviceWithOptions(appName string, instanceExtensions []string, createSur
 		var aaa vk.PhysicalDeviceProperties
 		vk.GetPhysicalDeviceProperties(gpu, &aaa)
 		aaa.Deref()
-		slog.Debug("Listed GPU: " + getCString(aaa.DeviceName[:]))
+		slog.Debug("Listed GPU: " + trimCString(aaa.DeviceName[:]))
 		aaa.Free()
 	}
 

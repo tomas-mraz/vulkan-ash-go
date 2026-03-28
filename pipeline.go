@@ -9,19 +9,19 @@ import (
 // PipelineOptions configures optional pipeline parameters.
 type PipelineOptions struct {
 	// VertShaderData is raw SPIR-V bytecode for the vertex shader.
-	// If nil, the default embedded shader "shaders/tri-vert.spv" is used.
+	// If nil, error happens
 	VertShaderData []byte
 	// FragShaderData is raw SPIR-V bytecode for the fragment shader.
-	// If nil, the default embedded shader "shaders/tri-frag.spv" is used.
+	// If nil, error happens
 	FragShaderData []byte
 	// PushConstantRanges defines push constant ranges for the pipeline layout.
 	// If nil, no push constants are used.
 	PushConstantRanges []vk.PushConstantRange
 	// VertexBindings defines custom vertex input bindings.
-	// If nil, default single binding (stride 12, vec3 position) is used.
+	// If nil, a default single binding (stride 12, vec3 position) is used.
 	VertexBindings []vk.VertexInputBindingDescription
 	// VertexAttributes defines custom vertex input attributes.
-	// If nil, default single attribute (location 0, R32G32B32Sfloat) is used.
+	// If nil, the default single attribute (location 0, R32G32B32Sfloat) is used.
 	VertexAttributes []vk.VertexInputAttributeDescription
 	// DescriptorSetLayouts defines descriptor set layouts for the pipeline layout.
 	// If nil, no descriptor sets are used.
