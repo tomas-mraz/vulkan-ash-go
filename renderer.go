@@ -6,17 +6,15 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-type VulkanRenderInfo struct {
+// VulkanRasterPassInfo owns a render pass used by rasterization pipelines.
+// Framebuffers remain owned by VulkanSwapchainInfo and command buffers by VulkanCommandContext.
+type VulkanRasterPassInfo struct {
 	device     vk.Device
 	RenderPass vk.RenderPass
-	cmdPool    vk.CommandPool
-	cmdBuffers []vk.CommandBuffer
-	semaphores []vk.Semaphore
-	fences     []vk.Fence
 }
 
-// NewRenderer creates a renderer with a single color attachment in the render pass.
-func NewRenderer(device vk.Device, displayFormat vk.Format) (VulkanRenderInfo, error) {
+// NewRasterPass creates a render pass with a single color attachment.
+func NewRasterPass(device vk.Device, displayFormat vk.Format) (VulkanRasterPassInfo, error) {
 	colorRef := []vk.AttachmentReference{{
 		Attachment: 0,
 		Layout:     vk.ImageLayoutColorAttachmentOptimal,
@@ -41,11 +39,11 @@ func NewRenderer(device vk.Device, displayFormat vk.Format) (VulkanRenderInfo, e
 			PColorAttachments:    colorRef,
 		}},
 	}
-	return createRenderer(device, rpInfo)
+	return createRasterPass(device, rpInfo)
 }
 
-// NewRendererWithDepth creates a renderer with color + depth attachments in the render pass.
-func NewRendererWithDepth(device vk.Device, displayFormat vk.Format, depthFormat vk.Format) (VulkanRenderInfo, error) {
+// NewRasterPassWithDepth creates a render pass with color + depth attachments.
+func NewRasterPassWithDepth(device vk.Device, displayFormat vk.Format, depthFormat vk.Format) (VulkanRasterPassInfo, error) {
 	colorRef := []vk.AttachmentReference{{
 		Attachment: 0,
 		Layout:     vk.ImageLayoutColorAttachmentOptimal,
@@ -86,69 +84,29 @@ func NewRendererWithDepth(device vk.Device, displayFormat vk.Format, depthFormat
 			},
 		}},
 	}
-	return createRenderer(device, rpInfo)
+	return createRasterPass(device, rpInfo)
 }
 
-// createRenderer creates a render pass from the given configuration and a command pool.
-func createRenderer(device vk.Device, renderPassInfo vk.RenderPassCreateInfo) (VulkanRenderInfo, error) {
-	var r VulkanRenderInfo
+func createRasterPass(device vk.Device, renderPassInfo vk.RenderPassCreateInfo) (VulkanRasterPassInfo, error) {
+	var r VulkanRasterPassInfo
 	err := vk.Error(vk.CreateRenderPass(device, &renderPassInfo, nil, &r.RenderPass))
 	if err != nil {
 		return r, fmt.Errorf("vk.CreateRenderPass failed with %s", err)
-	}
-	cmdPoolCreateInfo := vk.CommandPoolCreateInfo{
-		SType:            vk.StructureTypeCommandPoolCreateInfo,
-		Flags:            vk.CommandPoolCreateFlags(vk.CommandPoolCreateResetCommandBufferBit),
-		QueueFamilyIndex: 0,
-	}
-	err = vk.Error(vk.CreateCommandPool(device, &cmdPoolCreateInfo, nil, &r.cmdPool))
-	if err != nil {
-		return r, fmt.Errorf("vk.CreateCommandPool failed with %s", err)
 	}
 	r.device = device
 	return r, nil
 }
 
-func (r *VulkanRenderInfo) CreateCommandBuffers(n uint32) error {
-	r.cmdBuffers = make([]vk.CommandBuffer, n)
-	cmdBufferAllocateInfo := vk.CommandBufferAllocateInfo{
-		SType:              vk.StructureTypeCommandBufferAllocateInfo,
-		CommandPool:        r.cmdPool,
-		Level:              vk.CommandBufferLevelPrimary,
-		CommandBufferCount: n,
-	}
-	err := vk.Error(vk.AllocateCommandBuffers(r.device, &cmdBufferAllocateInfo, r.cmdBuffers))
-	if err != nil {
-		return fmt.Errorf("vk.AllocateCommandBuffers failed with %s", err)
-	}
-	return nil
+func (r *VulkanRasterPassInfo) GetRenderPass() vk.RenderPass {
+	return r.RenderPass
 }
 
-func (r *VulkanRenderInfo) GetCmdPool() vk.CommandPool {
-	return r.cmdPool
-}
-
-func (r *VulkanRenderInfo) GetCmdBuffers() []vk.CommandBuffer {
-	return r.cmdBuffers
-}
-
-// Destroy frees command buffers, destroys the command pool, and destroys the render pass.
-func (r *VulkanRenderInfo) Destroy() {
+func (r *VulkanRasterPassInfo) Destroy() {
 	if r == nil {
 		return
 	}
-	if len(r.cmdBuffers) > 0 {
-		vk.FreeCommandBuffers(r.device, r.cmdPool, uint32(len(r.cmdBuffers)), r.cmdBuffers)
-		r.cmdBuffers = nil
+	if r.RenderPass != vk.NullRenderPass {
+		vk.DestroyRenderPass(r.device, r.RenderPass, nil)
+		r.RenderPass = vk.NullRenderPass
 	}
-	vk.DestroyCommandPool(r.device, r.cmdPool, nil)
-	vk.DestroyRenderPass(r.device, r.RenderPass, nil)
-}
-
-func (r *VulkanRenderInfo) DefaultFence() vk.Fence {
-	return r.fences[0]
-}
-
-func (r *VulkanRenderInfo) DefaultSemaphore() vk.Semaphore {
-	return r.semaphores[0]
 }

@@ -304,13 +304,14 @@ func VulkanStart(device vk.Device, swapchain *VulkanSwapchainInfo, r *VulkanRend
 	clearValues := []vk.ClearValue{
 		vk.NewClearValue([]float32{0.098, 0.71, 0.996, 1}),
 	}
-	for i := range r.cmdBuffers {
+	cmdBuffers := r.GetCmdBuffers()
+	for i := range cmdBuffers {
 		cmdBufferBeginInfo := vk.CommandBufferBeginInfo{
 			SType: vk.StructureTypeCommandBufferBeginInfo,
 		}
 		renderPassBeginInfo := vk.RenderPassBeginInfo{
 			SType:       vk.StructureTypeRenderPassBeginInfo,
-			RenderPass:  r.RenderPass,
+			RenderPass:  r.GetRenderPass(),
 			Framebuffer: swapchain.Framebuffers[i],
 			RenderArea: vk.Rect2D{
 				Offset: vk.Offset2D{
@@ -321,17 +322,17 @@ func VulkanStart(device vk.Device, swapchain *VulkanSwapchainInfo, r *VulkanRend
 			ClearValueCount: 1,
 			PClearValues:    clearValues,
 		}
-		ret := vk.BeginCommandBuffer(r.cmdBuffers[i], &cmdBufferBeginInfo)
+		ret := vk.BeginCommandBuffer(cmdBuffers[i], &cmdBufferBeginInfo)
 		check(ret, "vk.BeginCommandBuffer")
 
-		vk.CmdBeginRenderPass(r.cmdBuffers[i], &renderPassBeginInfo, vk.SubpassContentsInline)
-		vk.CmdBindPipeline(r.cmdBuffers[i], vk.PipelineBindPointGraphics, gfx.pipeline)
+		vk.CmdBeginRenderPass(cmdBuffers[i], &renderPassBeginInfo, vk.SubpassContentsInline)
+		vk.CmdBindPipeline(cmdBuffers[i], vk.PipelineBindPointGraphics, gfx.pipeline)
 		offsets := make([]vk.DeviceSize, len(b.vertexBuffers))
-		vk.CmdBindVertexBuffers(r.cmdBuffers[i], 0, 1, b.vertexBuffers, offsets)
-		vk.CmdDraw(r.cmdBuffers[i], 3, 1, 0, 0)
-		vk.CmdEndRenderPass(r.cmdBuffers[i])
+		vk.CmdBindVertexBuffers(cmdBuffers[i], 0, 1, b.vertexBuffers, offsets)
+		vk.CmdDraw(cmdBuffers[i], 3, 1, 0, 0)
+		vk.CmdEndRenderPass(cmdBuffers[i])
 
-		ret = vk.EndCommandBuffer(r.cmdBuffers[i])
+		ret = vk.EndCommandBuffer(cmdBuffers[i])
 		check(ret, "vk.EndCommandBuffer")
 	}
 	fenceCreateInfo := vk.FenceCreateInfo{
