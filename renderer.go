@@ -132,6 +132,19 @@ func (r *VulkanRenderInfo) GetCmdBuffers() []vk.CommandBuffer {
 	return r.cmdBuffers
 }
 
+// Destroy frees command buffers, destroys the command pool, and destroys the render pass.
+func (r *VulkanRenderInfo) Destroy() {
+	if r == nil {
+		return
+	}
+	if len(r.cmdBuffers) > 0 {
+		vk.FreeCommandBuffers(r.device, r.cmdPool, uint32(len(r.cmdBuffers)), r.cmdBuffers)
+		r.cmdBuffers = nil
+	}
+	vk.DestroyCommandPool(r.device, r.cmdPool, nil)
+	vk.DestroyRenderPass(r.device, r.RenderPass, nil)
+}
+
 func (r *VulkanRenderInfo) DefaultFence() vk.Fence {
 	return r.fences[0]
 }

@@ -101,9 +101,13 @@ func newBufferFromData(device vk.Device, gpu vk.PhysicalDevice, data []byte, dat
 }
 
 func (buf *VulkanBufferInfo) Destroy() {
+	if buf == nil {
+		return
+	}
 	for i := range buf.vertexBuffers {
 		vk.DestroyBuffer(buf.device, buf.vertexBuffers[i], nil)
 	}
+	vk.FreeMemory(buf.device, buf.deviceMemory, nil)
 }
 
 func (buf *VulkanBufferInfo) DefaultVertexBuffer() vk.Buffer {

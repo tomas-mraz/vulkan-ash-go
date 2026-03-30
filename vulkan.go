@@ -28,6 +28,18 @@ func (v *Vulkan) GetDebugCallback() vk.DebugReportCallback {
 	return v.dbg
 }
 
+// Destroy waits for the device to be idle and tears down the device,
+// debug callback, surface, and instance.
+func (v *Vulkan) Destroy() {
+	vk.DeviceWaitIdle(v.Device)
+	vk.DestroyDevice(v.Device, nil)
+	if v.dbg != vk.NullDebugReportCallback {
+		vk.DestroyDebugReportCallback(v.Instance, v.dbg, nil)
+	}
+	vk.DestroySurface(v.Instance, v.Surface, nil)
+	vk.DestroyInstance(v.Instance, nil)
+}
+
 // NewExtentSize needs for Wayland
 func NewExtentSize(width, height int) vk.Extent2D {
 	return vk.Extent2D{
@@ -410,24 +422,11 @@ func DrawFrame(device vk.Device, queue vk.Queue, s VulkanSwapchainInfo, r Vulkan
 }
 
 func DestroyInOrder(v *Vulkan, swapchain *VulkanSwapchainInfo, r *VulkanRenderInfo, buffer *VulkanBufferInfo, gfx *VulkanGfxPipelineInfo) {
-
-	vk.FreeCommandBuffers(v.Device, r.cmdPool, uint32(len(r.cmdBuffers)), r.cmdBuffers)
-	r.cmdBuffers = nil
-
-	vk.DestroyCommandPool(v.Device, r.cmdPool, nil)
-	vk.DestroyRenderPass(v.Device, r.RenderPass, nil)
 	vk.DestroySemaphore(v.Device, r.DefaultSemaphore(), nil)
 	vk.DestroyFence(v.Device, r.DefaultFence(), nil)
-	vk.FreeMemory(v.Device, buffer.GetDeviceMemory(), nil)
-
-	swapchain.Destroy()
 	gfx.Destroy()
 	buffer.Destroy()
-
-	vk.DestroyDevice(v.Device, nil)
-	if v.dbg != vk.NullDebugReportCallback {
-		vk.DestroyDebugReportCallback(v.Instance, v.dbg, nil)
-	}
-	vk.DestroySurface(v.Instance, v.Surface, nil)
-	vk.DestroyInstance(v.Instance, nil)
+	r.Destroy()
+	swapchain.Destroy()
+	v.Destroy()
 }
