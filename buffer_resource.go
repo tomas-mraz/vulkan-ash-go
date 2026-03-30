@@ -111,8 +111,8 @@ func NewBufferResource(device vk.Device, gpu vk.PhysicalDevice, size uint64, opt
 	return res, nil
 }
 
-// NewHostVisibleBufferResource creates a host-visible/coherent buffer.
-func NewHostVisibleBufferResource(device vk.Device, gpu vk.PhysicalDevice, usage vk.BufferUsageFlags, size uint64, data unsafe.Pointer, enableDeviceAddress bool) (VulkanBufferResource, error) {
+// NewBufferResourceHostVisible creates a host-visible/coherent buffer.
+func NewBufferResourceHostVisible(device vk.Device, gpu vk.PhysicalDevice, usage vk.BufferUsageFlags, size uint64, data unsafe.Pointer, enableDeviceAddress bool) (VulkanBufferResource, error) {
 	return NewBufferResource(device, gpu, size, BufferResourceOptions{
 		Usage:               usage,
 		MemoryProperties:    vk.MemoryPropertyHostVisibleBit | vk.MemoryPropertyHostCoherentBit,
@@ -121,8 +121,8 @@ func NewHostVisibleBufferResource(device vk.Device, gpu vk.PhysicalDevice, usage
 	})
 }
 
-// NewDeviceLocalBufferResource creates a device-local buffer.
-func NewDeviceLocalBufferResource(device vk.Device, gpu vk.PhysicalDevice, usage vk.BufferUsageFlags, size uint64, enableDeviceAddress bool) (VulkanBufferResource, error) {
+// NewBufferResourceDeviceLocal creates a device-local buffer.
+func NewBufferResourceDeviceLocal(device vk.Device, gpu vk.PhysicalDevice, usage vk.BufferUsageFlags, size uint64, enableDeviceAddress bool) (VulkanBufferResource, error) {
 	return NewBufferResource(device, gpu, size, BufferResourceOptions{
 		Usage:               usage,
 		MemoryProperties:    vk.MemoryPropertyDeviceLocalBit,
