@@ -420,13 +420,3 @@ func DrawFrame(device vk.Device, queue vk.Queue, s VulkanSwapchainInfo, r Vulkan
 	}
 	return true
 }
-
-func DestroyInOrder(v *Vulkan, swapchain *VulkanSwapchainInfo, r *VulkanRenderInfo, buffer *VulkanBufferInfo, gfx *VulkanGfxPipelineInfo) {
-	vk.DestroySemaphore(v.Device, r.DefaultSemaphore(), nil)
-	vk.DestroyFence(v.Device, r.DefaultFence(), nil)
-	gfx.Destroy()
-	buffer.Destroy()
-	r.Destroy()
-	swapchain.Destroy()
-	v.Destroy()
-}
