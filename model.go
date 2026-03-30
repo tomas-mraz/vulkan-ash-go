@@ -12,19 +12,16 @@ import (
 	"github.com/qmuntal/gltf/modeler"
 )
 
-// Model holds parsed glTF model data ready for Vulkan buffer creation.
+// Model holds parsed glTF model data with interleaved position(3) + normal(3) vertices.
 type Model struct {
-	// Interleaved vertex data: position(3) + normal(3) + texcoord(2) = 8 floats per vertex
-	Vertices     []float32
-	Indices      []uint32
-	TextureRGBA  []byte
-	TextureWidth uint32
-	TextureHeight uint32
+	Vertices        []float32 // interleaved: pos3 + norm3 = 6 floats per vertex
+	FloatsPerVertex int
+	Indices         []uint32
 }
 
 // VertexCount returns the number of vertices.
 func (m *Model) VertexCount() int {
-	return len(m.Vertices) / 8
+	return len(m.Vertices) / m.FloatsPerVertex
 }
 
 // IndexCount returns the number of indices.
@@ -32,34 +29,109 @@ func (m *Model) IndexCount() int {
 	return len(m.Indices)
 }
 
-// LoadGLBModel loads a glTF/GLB file and returns a Model with interleaved
-// vertex data (pos3+norm3+uv2), indices, and the base color texture.
-func LoadGLBModel(path string) (Model, error) {
+// TexturedModel holds parsed glTF model data with interleaved
+// position(3) + normal(3) + texcoord(2) vertices and a base color texture.
+type TexturedModel struct {
+	Vertices        []float32 // interleaved: pos3 + norm3 + uv2 = 8 floats per vertex
+	FloatsPerVertex int
+	Indices         []uint32
+	TextureRGBA     []byte
+	TextureWidth    uint32
+	TextureHeight   uint32
+}
+
+// VertexCount returns the number of vertices.
+func (m *TexturedModel) VertexCount() int {
+	return len(m.Vertices) / m.FloatsPerVertex
+}
+
+// IndexCount returns the number of indices.
+func (m *TexturedModel) IndexCount() int {
+	return len(m.Indices)
+}
+
+// LoadModel loads a glTF/GLB file and returns a Model with interleaved
+// vertex data (pos3+norm3).
+func LoadModel(path string) (Model, error) {
 	doc, err := gltf.Open(path)
 	if err != nil {
 		return Model{}, fmt.Errorf("gltf.Open: %w", err)
 	}
 
-	vertices, indices, err := loadMeshes(doc)
-	if err != nil {
-		return Model{}, err
-	}
-
-	rgba, w, h, err := loadBaseColorTexture(doc)
+	vertices, indices, err := loadMeshesUntextured(doc)
 	if err != nil {
 		return Model{}, err
 	}
 
 	return Model{
-		Vertices:      vertices,
-		Indices:       indices,
-		TextureRGBA:   rgba,
-		TextureWidth:  w,
-		TextureHeight: h,
+		Vertices:        vertices,
+		FloatsPerVertex: 6,
+		Indices:         indices,
 	}, nil
 }
 
-func loadMeshes(doc *gltf.Document) (interleaved []float32, indices []uint32, err error) {
+// LoadGLBModel loads a glTF/GLB file and returns a TexturedModel with interleaved
+// vertex data (pos3+norm3+uv2), indices, and the base color texture.
+func LoadGLBModel(path string) (TexturedModel, error) {
+	doc, err := gltf.Open(path)
+	if err != nil {
+		return TexturedModel{}, fmt.Errorf("gltf.Open: %w", err)
+	}
+
+	vertices, indices, err := loadMeshesTextured(doc)
+	if err != nil {
+		return TexturedModel{}, err
+	}
+
+	rgba, w, h, err := loadBaseColorTexture(doc)
+	if err != nil {
+		return TexturedModel{}, err
+	}
+
+	return TexturedModel{
+		Vertices:        vertices,
+		FloatsPerVertex: 8,
+		Indices:         indices,
+		TextureRGBA:     rgba,
+		TextureWidth:    w,
+		TextureHeight:   h,
+	}, nil
+}
+
+func loadMeshesUntextured(doc *gltf.Document) (interleaved []float32, indices []uint32, err error) {
+	for _, mesh := range doc.Meshes {
+		for _, prim := range mesh.Primitives {
+			positions, err := modeler.ReadPosition(doc, doc.Accessors[prim.Attributes[gltf.POSITION]], nil)
+			if err != nil {
+				return nil, nil, fmt.Errorf("ReadPosition: %w", err)
+			}
+			normals, err := modeler.ReadNormal(doc, doc.Accessors[prim.Attributes[gltf.NORMAL]], nil)
+			if err != nil {
+				return nil, nil, fmt.Errorf("ReadNormal: %w", err)
+			}
+
+			vertexOffset := uint32(len(interleaved) / 6)
+
+			primIndices, err := modeler.ReadIndices(doc, doc.Accessors[*prim.Indices], nil)
+			if err != nil {
+				return nil, nil, fmt.Errorf("ReadIndices: %w", err)
+			}
+			for _, idx := range primIndices {
+				indices = append(indices, idx+vertexOffset)
+			}
+
+			for i := range positions {
+				interleaved = append(interleaved,
+					positions[i][0], positions[i][1], positions[i][2],
+					normals[i][0], normals[i][1], normals[i][2],
+				)
+			}
+		}
+	}
+	return interleaved, indices, nil
+}
+
+func loadMeshesTextured(doc *gltf.Document) (interleaved []float32, indices []uint32, err error) {
 	for _, mesh := range doc.Meshes {
 		for _, prim := range mesh.Primitives {
 			positions, err := modeler.ReadPosition(doc, doc.Accessors[prim.Attributes[gltf.POSITION]], nil)
