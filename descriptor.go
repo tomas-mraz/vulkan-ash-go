@@ -79,7 +79,7 @@ func NewDescriptorUBO(device vk.Device, uniforms *VulkanUniformBuffers, count ui
 
 // NewDescriptorUBOTexture creates descriptors with UBO at binding 0 (vertex stage)
 // and a combined image sampler at binding 1 (fragment stage).
-func NewDescriptorUBOTexture(device vk.Device, uniforms *VulkanUniformBuffers, texture *VulkanTextureInfo, count uint32) (VulkanDescriptorInfo, error) {
+func NewDescriptorUBOTexture(device vk.Device, uniforms *VulkanUniformBuffers, texture *VulkanImageResource, count uint32) (VulkanDescriptorInfo, error) {
 	var d VulkanDescriptorInfo
 	d.device = device
 
