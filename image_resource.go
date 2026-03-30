@@ -19,9 +19,9 @@ type VulkanImageResource struct {
 }
 
 func (r *VulkanImageResource) GetImage() vk.Image     { return r.Image }
-func (r *VulkanImageResource) GetView() vk.ImageView   { return r.View }
-func (r *VulkanImageResource) GetSampler() vk.Sampler   { return r.Sampler }
-func (r *VulkanImageResource) GetFormat() vk.Format     { return r.Format }
+func (r *VulkanImageResource) GetView() vk.ImageView  { return r.View }
+func (r *VulkanImageResource) GetSampler() vk.Sampler { return r.Sampler }
+func (r *VulkanImageResource) GetFormat() vk.Format   { return r.Format }
 
 // NewImageResourceFromHandles wraps pre-existing Vulkan handles into a VulkanImageResource.
 // Use this when image creation is done manually (e.g. staging buffer upload with optimal tiling).
@@ -137,6 +137,110 @@ func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint
 	}, nil, &r.View))
 	if err != nil {
 		return r, fmt.Errorf("vk.CreateImageView (texture) failed with %s", err)
+	}
+
+	return r, nil
+}
+
+// NewImageTextureWithSampler uploads RGBA pixels through a staging buffer into an
+// optimal-tiled sampled image and creates a sampler from samplerInfo.
+func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext, width, height uint32, rgbaPixels []byte, samplerInfo vk.SamplerCreateInfo) (VulkanImageResource, error) {
+	var r VulkanImageResource
+	r.device = device
+	r.Format = vk.FormatR8g8b8a8Unorm
+
+	stagingBuf, err := NewBufferHostVisible(device, gpu, rgbaPixels, true, vk.BufferUsageFlags(vk.BufferUsageTransferSrcBit))
+	if err != nil {
+		return r, fmt.Errorf("create staging buffer: %w", err)
+	}
+	defer stagingBuf.Destroy()
+
+	err = vk.Error(vk.CreateImage(device, &vk.ImageCreateInfo{
+		SType:       vk.StructureTypeImageCreateInfo,
+		ImageType:   vk.ImageType2d,
+		Format:      r.Format,
+		Extent:      vk.Extent3D{Width: width, Height: height, Depth: 1},
+		MipLevels:   1,
+		ArrayLayers: 1,
+		Samples:     vk.SampleCount1Bit,
+		Tiling:      vk.ImageTilingOptimal,
+		Usage:       vk.ImageUsageFlags(vk.ImageUsageTransferDstBit | vk.ImageUsageSampledBit),
+	}, nil, &r.Image))
+	if err != nil {
+		return r, fmt.Errorf("vk.CreateImage (texture) failed with %s", err)
+	}
+
+	var memReqs vk.MemoryRequirements
+	vk.GetImageMemoryRequirements(device, r.Image, &memReqs)
+	memReqs.Deref()
+
+	memIdx, _ := vk.FindMemoryTypeIndex(gpu, memReqs.MemoryTypeBits, vk.MemoryPropertyDeviceLocalBit)
+	err = vk.Error(vk.AllocateMemory(device, &vk.MemoryAllocateInfo{
+		SType:           vk.StructureTypeMemoryAllocateInfo,
+		AllocationSize:  memReqs.Size,
+		MemoryTypeIndex: memIdx,
+	}, nil, &r.Memory))
+	if err != nil {
+		r.Destroy()
+		return r, fmt.Errorf("vk.AllocateMemory (texture) failed with %s", err)
+	}
+
+	err = vk.Error(vk.BindImageMemory(device, r.Image, r.Memory, 0))
+	if err != nil {
+		r.Destroy()
+		return r, fmt.Errorf("vk.BindImageMemory (texture) failed with %s", err)
+	}
+
+	cmd, err := cmdCtx.BeginOneTime()
+	if err != nil {
+		r.Destroy()
+		return r, fmt.Errorf("BeginOneTime: %w", err)
+	}
+
+	rangeColor := vk.ImageSubresourceRange{AspectMask: vk.ImageAspectFlags(vk.ImageAspectColorBit), LevelCount: 1, LayerCount: 1}
+	vk.CmdPipelineBarrier(cmd,
+		vk.PipelineStageFlags(vk.PipelineStageTopOfPipeBit), vk.PipelineStageFlags(vk.PipelineStageTransferBit),
+		0, 0, nil, 0, nil, 1, []vk.ImageMemoryBarrier{{
+			SType:     vk.StructureTypeImageMemoryBarrier,
+			OldLayout: vk.ImageLayoutUndefined, NewLayout: vk.ImageLayoutTransferDstOptimal,
+			Image: r.Image, SubresourceRange: rangeColor,
+			DstAccessMask:       vk.AccessFlags(vk.AccessTransferWriteBit),
+			SrcQueueFamilyIndex: vk.QueueFamilyIgnored, DstQueueFamilyIndex: vk.QueueFamilyIgnored,
+		}})
+	vk.CmdCopyBufferToImage(cmd, stagingBuf.Buffer, r.Image, vk.ImageLayoutTransferDstOptimal, 1, []vk.BufferImageCopy{{
+		ImageSubresource: vk.ImageSubresourceLayers{AspectMask: vk.ImageAspectFlags(vk.ImageAspectColorBit), LayerCount: 1},
+		ImageExtent:      vk.Extent3D{Width: width, Height: height, Depth: 1},
+	}})
+	vk.CmdPipelineBarrier(cmd,
+		vk.PipelineStageFlags(vk.PipelineStageTransferBit), vk.PipelineStageFlags(vk.PipelineStageFragmentShaderBit|vk.PipelineStageRayTracingShaderBit),
+		0, 0, nil, 0, nil, 1, []vk.ImageMemoryBarrier{{
+			SType:     vk.StructureTypeImageMemoryBarrier,
+			OldLayout: vk.ImageLayoutTransferDstOptimal, NewLayout: vk.ImageLayoutShaderReadOnlyOptimal,
+			Image: r.Image, SubresourceRange: rangeColor,
+			SrcAccessMask: vk.AccessFlags(vk.AccessTransferWriteBit), DstAccessMask: vk.AccessFlags(vk.AccessShaderReadBit),
+			SrcQueueFamilyIndex: vk.QueueFamilyIgnored, DstQueueFamilyIndex: vk.QueueFamilyIgnored,
+		}})
+	if err := cmdCtx.EndOneTime(queue, cmd); err != nil {
+		r.Destroy()
+		return r, fmt.Errorf("EndOneTime: %w", err)
+	}
+
+	err = vk.Error(vk.CreateImageView(device, &vk.ImageViewCreateInfo{
+		SType:            vk.StructureTypeImageViewCreateInfo,
+		Image:            r.Image,
+		ViewType:         vk.ImageViewType2d,
+		Format:           r.Format,
+		SubresourceRange: rangeColor,
+	}, nil, &r.View))
+	if err != nil {
+		r.Destroy()
+		return r, fmt.Errorf("vk.CreateImageView (texture) failed with %s", err)
+	}
+
+	err = vk.Error(vk.CreateSampler(device, &samplerInfo, nil, &r.Sampler))
+	if err != nil {
+		r.Destroy()
+		return r, fmt.Errorf("vk.CreateSampler failed with %s", err)
 	}
 
 	return r, nil
