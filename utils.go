@@ -49,22 +49,26 @@ func AndroidExtensions() []string {
 	return append([]string(nil), androidExtensions[:]...)
 }
 
-// Destroyer collects cleanup functions and runs them in LIFO order.
-// Register cleanup right after object creation with Add, then call
-// Destroy at shutdown to tear down everything in reverse order.
-type Destroyer struct {
-	fns []func()
+// Cleanup collects cleanup functions and runs them in LIFO order.
+// Register cleanup right after object creation with Add, then call Destroy at shutdown to tear down everything in reverse order.
+type Cleanup struct {
+	fns []Destroyer
+}
+
+// Destroyer represents a type that can release its owned resources.
+type Destroyer interface {
+	Destroy()
 }
 
 // Add registers a cleanup function. Functions run in reverse order on Destroy.
-func (d *Destroyer) Add(fn func()) {
-	d.fns = append(d.fns, fn)
+func (d *Cleanup) Add(obj Destroyer) {
+	d.fns = append(d.fns, obj)
 }
 
 // Destroy runs all registered cleanup functions in LIFO order and clears the list.
-func (d *Destroyer) Destroy() {
+func (d *Cleanup) Destroy() {
 	for i := len(d.fns) - 1; i >= 0; i-- {
-		d.fns[i]()
+		d.fns[i].Destroy()
 	}
 	d.fns = nil
 }
