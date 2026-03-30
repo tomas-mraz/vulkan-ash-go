@@ -113,7 +113,7 @@ func NewBufferResource(device vk.Device, gpu vk.PhysicalDevice, size uint64, opt
 
 // NewBufferHostVisible creates a host-visible/coherent buffer from a typed slice.
 // The buffer size is computed automatically from the slice length and element size.
-func NewBufferHostVisible[T any](device vk.Device, gpu vk.PhysicalDevice, usage vk.BufferUsageFlags, data []T, enableDeviceAddress bool) (VulkanBufferResource, error) {
+func NewBufferHostVisible[T any](device vk.Device, gpu vk.PhysicalDevice, data []T, enableDeviceAddress bool, usage vk.BufferUsageFlags) (VulkanBufferResource, error) {
 	size := uint64(len(data)) * uint64(unsafe.Sizeof(*new(T)))
 	var dataPtr unsafe.Pointer
 	if len(data) > 0 {
@@ -129,7 +129,7 @@ func NewBufferHostVisible[T any](device vk.Device, gpu vk.PhysicalDevice, usage 
 
 // NewBufferDeviceLocal creates a device-local buffer.
 // Device-local memory cannot be written from CPU, so size is specified in bytes directly.
-func NewBufferDeviceLocal(device vk.Device, gpu vk.PhysicalDevice, usage vk.BufferUsageFlags, size uint64, enableDeviceAddress bool) (VulkanBufferResource, error) {
+func NewBufferDeviceLocal(device vk.Device, gpu vk.PhysicalDevice, size uint64, enableDeviceAddress bool, usage vk.BufferUsageFlags) (VulkanBufferResource, error) {
 	return NewBufferResource(device, gpu, size, BufferResourceOptions{
 		Usage:               usage,
 		MemoryProperties:    vk.MemoryPropertyDeviceLocalBit,
