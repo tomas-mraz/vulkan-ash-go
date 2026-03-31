@@ -1,48 +1,26 @@
 # Vulkan ash
 
-Abstract layer for Vulkan API.
+Go Vulkan framework makes using Vulkan in Golang accessible. By solving basic boilerplate create a higher level abstract layer for building applications.
 
-# API
+## API
 
-## Device capability checks
+The overview of public API of the `ash` package is in separated file [API.md](API.md).
 
-### CheckDeviceExtensions
+## Examples
 
-```go
-func CheckDeviceExtensions(gpu vk.PhysicalDevice, required []string) (ok bool, missing []string)
-```
+Examples for usage of this framework are in the separate repository [github.com/tomas-mraz/vulkan-example](http://github.com/tomas-mraz/vulkan-example).
 
-Returns whether the physical device supports all required Vulkan extensions. Any unsupported extensions are returned in `missing`.
+## Dependencies
 
-```go
-ok, missing := asch.CheckDeviceExtensions(gpu, []string{
-    "VK_KHR_acceleration_structure\x00",
-    "VK_KHR_ray_tracing_pipeline\x00",
-})
-if !ok {
-    log.Fatalf("Missing extensions: %v", missing)
-}
-```
+- [github.com/tomas-mraz/vulkan](https://github.com/tomas-mraz/vulkan) – Go Vulkan API bindings
+- [github.com/qmuntal/gltf](https://github.com/qmuntal/gltf) – Go loading models from glTF files
 
-### CheckDeviceApiVersion
 
-```go
-func CheckDeviceApiVersion(gpu vk.PhysicalDevice, minVersion uint32) (ok bool, deviceVersion uint32)
-```
+## Links to related projects
 
-Returns whether the physical device supports at least the given Vulkan API version.
-
-```go
-ok, ver := asch.CheckDeviceApiVersion(gpu, vk.MakeVersion(1, 2, 0))
-if !ok {
-    log.Fatalf("GPU supports Vulkan %s, need 1.2.0", vk.Version(ver))
-}
-```
-
-# Links
-
-- Vulkan bindings (original xlab) - https://github.com/vulkan-go/vulkan
-- Vulkan bindings (updated 1.3) - https://github.com/goki/vulkan
+- Vulkan Go bindings (original xlab) - https://github.com/vulkan-go/vulkan
+- Vulkan Go bindings (updated 1.3 goki) - https://github.com/goki/vulkan
 - Vulkan framework - https://github.com/goki/vgpu
-- GLFW bindings - https://github.com/go-gl/glfw
+- GLFW Go bindings - https://github.com/go-gl/glfw
+- GLFW C library - https://github.com/glfw/glfw
 
