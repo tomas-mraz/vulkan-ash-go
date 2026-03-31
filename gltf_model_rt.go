@@ -20,11 +20,11 @@ type GLTFModel struct {
 	device         vk.Device
 	Primitives     []GLTFPrimitive
 	GeometryBuffer VulkanBufferResource
-	BLAS           VulkanAccelerationStructure
+	BLAS           AccelerationStructure
 	Textures       []VulkanImageResource
 }
 
-func NewGLTFModel(device vk.Device, primitives []GLTFPrimitive, geometryBuffer VulkanBufferResource, blas VulkanAccelerationStructure, textures []VulkanImageResource) GLTFModel {
+func NewGLTFModel(device vk.Device, primitives []GLTFPrimitive, geometryBuffer VulkanBufferResource, blas AccelerationStructure, textures []VulkanImageResource) GLTFModel {
 	return GLTFModel{
 		device:         device,
 		Primitives:     primitives,
