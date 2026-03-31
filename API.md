@@ -31,7 +31,9 @@ Public API of the `ash` package. The overview below is split into exported struc
 | [`PipelineRasterization`](#pipelinerasterization)         | rasterization | Handles for the graphics pipeline, layout, and cache.            |
 | [`RasterizationPass`](#struct-rasterizationpass)          | rasterization | Wrapper over a rasterization render pass.                        |
 | [`PipelineRaytracing`](#pipelineraytracing)               | raytracing    | Holds a ray tracing pipeline and its layout.                     |
+| [`RaytracingContext`](#raytracingcontext)                 | raytracing    | Orchestration object for RT helpers; it does not own resources.  |
 | [`AccelerationStructure`](#accelerationstructure)         | raytracing    | Acceleration structure including its backing buffer.             |
+| [`TLASInstance`](#tlasinstance)                           | raytracing    | One TLAS instance referencing a BLAS with transform and flags.   |
 | [`GLTFPrimitive`](#gltfprimitive)                         | raytracing    | GPU data for one glTF primitive used in RT.                      |
 | [`GLTFModel`](#gltfmodel)                                 | raytracing    | Complete RT model with primitives, textures, and BLAS.           |
 | [`ShaderBindingTable`](#shaderbindingtable)               | raytracing    | Shader binding table and its address regions.                    |
@@ -91,6 +93,14 @@ Destroys the pipeline, cache, and layout. The caller must ensure the GPU is no l
 <a id="pipelineraytracing"></a>
 ## PipelineRaytracing{}
 Holds a ray tracing pipeline and its layout.
+
+<a id="raytracingcontext"></a>
+## RaytracingContext{}
+Lightweight orchestration object for ray tracing helpers. It groups `device`, `gpu`, `queue`, and `CommandContext`, but does not own or destroy any Vulkan resources.
+
+<a id="tlasinstance"></a>
+## TLASInstance{}
+Description of one top-level acceleration structure instance, including transform, instance metadata, and the referenced BLAS.
 
 <a id="struct-accelerationstructure"></a>
 ## AccelerationStructure{}
@@ -371,6 +381,16 @@ Configures the rasterization graphics pipeline: shaders, push constants, descrip
 ### `RasterizationPass`
 
 Simple owner of a `vk.RenderPass` handle for rasterization.
+
+<a id="struct-raytracingcontext"></a>
+### `RaytracingContext`
+
+Lightweight orchestration object for ray tracing helpers. It groups the Vulkan device, GPU, queue, and `CommandContext`, but it does not own resources and therefore has no cleanup responsibility.
+
+<a id="struct-tlasinstance"></a>
+### `TLASInstance`
+
+Describes one TLAS instance: the 3x4 transform, custom index, visibility mask, SBT record offset, geometry flags, and the referenced BLAS.
 
 
 ## Common
@@ -1289,6 +1309,18 @@ Destroys the render pass if it is valid. It is safe to call even on a null or al
 `func RaytracingExtensions() []string`
 
 Returns a copy of the device extensions required by the ray tracing helpers in the library. The resulting slice can be further extended or filtered.
+
+<a id="newraytracingcontext"></a>
+### `NewRaytracingContext`
+`func NewRaytracingContext(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext) RaytracingContext`
+
+Creates a lightweight orchestration object for ray tracing helper methods. It only groups existing dependencies and does not allocate, own, or destroy any Vulkan resources.
+
+<a id="raytracingcontext-newtoplevelaccelerationstructure"></a>
+### `(*RaytracingContext).NewTopLevelAccelerationStructure`
+`func (rt *RaytracingContext) NewTopLevelAccelerationStructure(instances []TLASInstance, flags vk.BuildAccelerationStructureFlags) (AccelerationStructure, error)`
+
+Builds a TLAS from a slice of BLAS instances. The method creates and destroys the temporary instance and scratch buffers internally, while the returned `AccelerationStructure` remains owned by the caller.
 
 <a id="decodegltftexture"></a>
 ### `DecodeGLTFTexture`
