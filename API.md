@@ -2,98 +2,132 @@
 
 Public API of the `ash` package. The overview below is split into exported structs and exported functions/methods; `Destroy` functions are intentionally omitted from the second table.
 
-## Structures
+# Structures
 
-| Structure | Layer | Description |
-| --- | --- | --- |
-| [`Vulkan`](#struct-vulkan) | common | Main Vulkan context with instance, device, surface, and queue. |
-| [`DeviceOptions`](#struct-deviceoptions) | common | Options for advanced Vulkan device creation. |
-| [`Cleanup`](#struct-cleanup) | common | Simple LIFO registry for cleanup steps. |
-| [`VulkanCommandContext`](#struct-vulkancommandcontext) | common | Command pool and a set of reusable command buffers. |
-| [`VulkanSwapchainInfo`](#struct-vulkanswapchaininfo) | common | Metadata and handles for the swapchain and framebuffers. |
-| [`VulkanBufferInfo`](#struct-vulkanbufferinfo) | common | Simple vertex buffer helper. |
-| [`BufferResourceOptions`](#struct-bufferresourceoptions) | common | Configuration for a generic buffer resource. |
-| [`VulkanBufferResource`](#struct-vulkanbufferresource) | common | Generic representation of a Vulkan buffer and its memory. |
-| [`VulkanIndexBufferInfo`](#struct-vulkanindexbufferinfo) | common | Helper for an index buffer and its index count. |
-| [`VulkanImageResource`](#struct-vulkanimageresource) | common | Generic image resource with image, view, sampler, and memory. |
-| [`VulkanUniformBuffers`](#struct-vulkanuniformbuffers) | common | Set of uniform buffers, typically one per frame. |
-| [`VulkanDescriptorInfo`](#struct-vulkandescriptorinfo) | common | Descriptor layout, pool, and allocated sets. |
-| [`VulkanSyncInfo`](#struct-vulkansyncinfo) | common | Fence and semaphore for synchronization. |
-| [`Model`](#struct-model) | common | Untextured glTF model in an interleaved vertex layout. |
-| [`TexturedModel`](#struct-texturedmodel) | common | Textured model including an RGBA base color texture. |
-| [`Vec2`](#struct-vec2) | common | 2D vector type for math utilities. |
-| [`Vec3`](#struct-vec3) | common | 3D vector type for math utilities. |
-| [`Vec4`](#struct-vec4) | common | 4D vector type for math utilities. |
-| [`Quat`](#struct-quat) | common | Quaternion type for rotations. |
-| [`Mat4x4`](#struct-mat4x4) | common | 4x4 matrix for transforms and projections. |
-| [`ArrayFloat32`](#struct-arrayfloat32) | common | Helper alias for a byte view over `[]float32`. |
-| [`PipelineOptions`](#struct-pipelineoptions) | rasterization | Shader, layout, and state configuration for a graphics pipeline. |
-| [`VulkanGfxPipelineInfo`](#struct-vulkangfxpipelineinfo) | rasterization | Handles for the graphics pipeline, layout, and cache. |
-| [`VulkanRasterPassInfo`](#struct-vulkanrasterpassinfo) | rasterization | Wrapper over a rasterization render pass. |
-| [`VulkanAccelerationStructure`](#struct-vulkanaccelerationstructure) | raytracing | Acceleration structure including its backing buffer. |
-| [`GLTFPrimitive`](#struct-gltfprimitive) | raytracing | GPU data for one glTF primitive used in RT. |
-| [`GLTFModel`](#struct-gltfmodel) | raytracing | Complete RT model with primitives, textures, and BLAS. |
-| [`VulkanSBT`](#struct-vulkansbt) | raytracing | Shader binding table and its address regions. |
+| Structure                                                            | Layer         | Description                                                      |
+|----------------------------------------------------------------------|---------------|------------------------------------------------------------------|
+| [`Vulkan`](#struct-vulkan)                                           | common        | Main Vulkan context with instance, device, surface, and queue.   |
+| [`DeviceOptions`](#struct-deviceoptions)                             | common        | Options for advanced Vulkan device creation.                     |
+| [`Cleanup`](#struct-cleanup)                                         | common        | Simple LIFO registry for cleanup steps.                          |
+| [`VulkanCommandContext`](#vulkancommandcontext)                      | common        | Command pool and a set of reusable command buffers.              |
+| [`VulkanSwapchainInfo`](#struct-vulkanswapchaininfo)                 | common        | Metadata and handles for the swapchain and framebuffers.         |
+| [`VulkanBufferInfo`](#struct-vulkanbufferinfo)                       | common        | Simple vertex buffer helper.                                     |
+| [`BufferResourceOptions`](#struct-bufferresourceoptions)             | common        | Configuration for a generic buffer resource.                     |
+| [`VulkanBufferResource`](#struct-vulkanbufferresource)               | common        | Generic representation of a Vulkan buffer and its memory.        |
+| [`VulkanIndexBufferInfo`](#struct-vulkanindexbufferinfo)             | common        | Helper for an index buffer and its index count.                  |
+| [`VulkanImageResource`](#struct-vulkanimageresource)                 | common        | Generic image resource with image, view, sampler, and memory.    |
+| [`VulkanUniformBuffers`](#struct-vulkanuniformbuffers)               | common        | Set of uniform buffers, typically one per frame.                 |
+| [`VulkanDescriptorInfo`](#struct-vulkandescriptorinfo)               | common        | Descriptor layout, pool, and allocated sets.                     |
+| [`VulkanSyncInfo`](#struct-vulkansyncinfo)                           | common        | Fence and semaphore for synchronization.                         |
+| [`Model`](#struct-model)                                             | common        | Untextured glTF model in an interleaved vertex layout.           |
+| [`TexturedModel`](#struct-texturedmodel)                             | common        | Textured model including an RGBA base color texture.             |
+| [`Vec2`](#struct-vec2)                                               | common        | 2D vector type for math utilities.                               |
+| [`Vec3`](#struct-vec3)                                               | common        | 3D vector type for math utilities.                               |
+| [`Vec4`](#struct-vec4)                                               | common        | 4D vector type for math utilities.                               |
+| [`Quat`](#struct-quat)                                               | common        | Quaternion type for rotations.                                   |
+| [`Mat4x4`](#struct-mat4x4)                                           | common        | 4x4 matrix for transforms and projections.                       |
+| [`ArrayFloat32`](#struct-arrayfloat32)                               | common        | Helper alias for a byte view over `[]float32`.                   |
+| [`PipelineOptions`](#struct-pipelineoptions)                         | rasterization | Shader, layout, and state configuration for a graphics pipeline. |
+| [`VulkanGfxPipelineInfo`](#struct-vulkangfxpipelineinfo)             | rasterization | Handles for the graphics pipeline, layout, and cache.            |
+| [`VulkanRasterPassInfo`](#struct-vulkanrasterpassinfo)               | rasterization | Wrapper over a rasterization render pass.                        |
+| [`VulkanAccelerationStructure`](#struct-vulkanaccelerationstructure) | raytracing    | Acceleration structure including its backing buffer.             |
+| [`GLTFPrimitive`](#struct-gltfprimitive)                             | raytracing    | GPU data for one glTF primitive used in RT.                      |
+| [`GLTFModel`](#struct-gltfmodel)                                     | raytracing    | Complete RT model with primitives, textures, and BLAS.           |
+| [`VulkanSBT`](#struct-vulkansbt)                                     | raytracing    | Shader binding table and its address regions.                    |
+
+# Structures detailed description
+
+<a id="vulkancommandcontext"></a>
+## VulkanCommandContext{}
+
+### `NewCommandContext()`
+Creates a resettable command pool and optionally preallocates a set of primary command buffers. Typically used both for frame command buffers and transient upload operations.  
+`func NewCommandContext(device vk.Device, queueFamilyIndex, commandBufferCount uint32) (VulkanCommandContext, error)`
+
+### `(*VulkanCommandContext).GetCmdPool`
+Returns the command pool handle managed by the context. Useful when another API expects a raw `vk.CommandPool`.  
+`func (c *VulkanCommandContext) GetCmdPool() vk.CommandPool`
+
+
+### `(*VulkanCommandContext).GetCmdBuffers`
+Returns the preallocated command buffers. The library does not record or rotate them automatically; that remains the caller's responsibility.  
+`func (c *VulkanCommandContext) GetCmdBuffers() []vk.CommandBuffer`
+
+
+### `(*VulkanCommandContext).BeginOneTime`
+Allocates a transient primary command buffer and immediately begins it with `OneTimeSubmit`. Suitable for short uploads and layout transitions.  
+`func (c *VulkanCommandContext) BeginOneTime() (vk.CommandBuffer, error)`
+
+
+### `(*VulkanCommandContext).EndOneTime`
+Ends, submits, and synchronously completes a one-time command buffer. After completion it frees the buffer back to the command pool.  
+`func (c *VulkanCommandContext) EndOneTime(queue vk.Queue, cmd vk.CommandBuffer) error`
+
+### `(*VulkanCommandContext).Destroy`
+Frees all preallocated command buffers and then destroys the command pool. It safely handles partially initialized states as well.  
+
+
+
 
 ## Functions
 
-| Function | Layer | Description |
-| --- | --- | --- |
-| [`SetDebug`](#setdebug) | common | Enables or disables internal debug mode. |
-| [`NewExtentSize`](#newextentsize) | common | Creates a `vk.Extent2D` from `int` dimensions. |
-| [`GetDeviceExtensions`](#getdeviceextensions) | common | Returns device extension names supported by the GPU. |
-| [`CheckDeviceExtensions`](#checkdeviceextensions) | common | Verifies that the GPU supports required extensions. |
-| [`CheckDeviceApiVersion`](#checkdeviceapiversion) | common | Verifies the minimum Vulkan API version of the GPU. |
-| [`NewDevice`](#newdevice) | common | Creates the basic Vulkan instance/device/surface context. |
-| [`NewDeviceWithOptions`](#newdevicewithoptions) | common | Creates a Vulkan context with advanced options. |
-| [`NewAndroidSurface`](#newandroidsurface) | common | Creates an Android surface from a native window. |
-| [`MakeCString`](#makecstring) | common | Appends a null terminator to a Go string. |
-| [`AndroidExtensions`](#androidextensions) | common | Returns required Android instance extensions. |
-| [`LoadShaderFromBytes`](#loadshaderfrombytes) | common | Creates a shader module from raw SPIR-V data. |
-| [`NewCommandContext`](#newcommandcontext) | common | Creates a command pool and optional command buffers. |
-| [`NewSwapchain`](#newswapchain) | common | Creates a swapchain and selects a surface format. |
-| [`NewBuffer`](#newbuffer) | common | Creates the default triangle vertex buffer. |
-| [`NewBufferWithData`](#newbufferwithdata) | common | Creates a vertex buffer from `[]float32`. |
-| [`NewBufferResource`](#newbufferresource) | common | Creates a generic Vulkan buffer resource. |
-| [`NewBufferHostVisible`](#newbufferhostvisible) | common | Creates a host-visible buffer from a typed slice. |
-| [`NewBufferDeviceLocal`](#newbufferdevicelocal) | common | Creates a device-local buffer resource. |
-| [`NewIndexBuffer`](#newindexbuffer) | common | Creates an index buffer from `[]uint16`. |
-| [`NewIndexBuffer32`](#newindexbuffer32) | common | Creates an index buffer from `[]uint32`. |
-| [`NewImageResourceFromHandles`](#newimageresourcefromhandles) | common | Wraps existing image handles into a resource type. |
-| [`NewImageTexture`](#newimagetexture) | common | Creates a 2D texture from RGBA pixels. |
-| [`NewImageTextureWithSampler`](#newimagetexturewithsampler) | common | Uploads a texture through staging and creates a sampler. |
-| [`NewImageStorage`](#newimagestorage) | common | Creates a storage image and transitions it to `General`. |
-| [`NewImageDepth`](#newimagedepth) | common | Creates a depth image with a view. |
-| [`TransitionImageLayout`](#transitionimagelayout) | common | Performs a one-time image layout transition. |
-| [`NewUniformBuffers`](#newuniformbuffers) | common | Creates a set of uniform buffers. |
-| [`NewDescriptorUBO`](#newdescriptorubo) | common | Prepares descriptor sets for a UBO only. |
-| [`NewDescriptorUBOTexture`](#newdescriptorubotexture) | common | Prepares descriptor sets for a UBO and a texture. |
-| [`NewSyncObjects`](#newsyncobjects) | common | Creates a fence and semaphore for synchronization. |
-| [`LoadModel`](#loadmodel) | common | Loads a glTF/GLB model without textures. |
-| [`LoadGLBModel`](#loadglbmodel) | common | Loads a textured glTF/GLB model. |
-| [`DegreesToRadians`](#degreestoradians) | common | Converts degrees to radians. |
-| [`RadiansToDegrees`](#radianstodegrees) | common | Converts radians to degrees. |
-| [`AlignUp`](#alignup) | common | Rounds a size up to a multiple of the alignment. |
-| [`Vec2MultInner`](#vec2multinner) | common | Computes the dot product of two `Vec2` values. |
-| [`Vec3MultInner`](#vec3multinner) | common | Computes the dot product of two `Vec3` values. |
-| [`Vec4MultInner`](#vec4multinner) | common | Computes the dot product of two `Vec4` values. |
-| [`Vec4MultInner3`](#vec4multinner3) | common | Computes the dot product of the first three `Vec4` components. |
-| [`QuatMultInner3`](#quatmultinner3) | common | Computes the inner product of the first three components. |
-| [`QuatInnerProduct`](#quatinnerproduct) | common | Computes the full dot product of two quaternions. |
-| [`InvertMatrix`](#invertmatrix) | common | Returns a matrix inverse with identity fallback. |
-| [`DumpMatrix`](#dumpmatrix) | common | Writes a matrix into a debug string. |
-| [`NewRasterPass`](#newrasterpass) | rasterization | Creates a render pass with one color attachment. |
-| [`NewRasterPassWithDepth`](#newrasterpasswithdepth) | rasterization | Creates a render pass with color and depth attachments. |
-| [`NewGraphicsPipelineWithOptions`](#newgraphicspipelinewithoptions) | rasterization | Creates a graphics pipeline from the provided options. |
-| [`RaytracingExtensions`](#raytracingextensions) | raytracing | Returns the list of required RT device extensions. |
-| [`DecodeGLTFTexture`](#decodegltftexture) | raytracing | Decodes a glTF image into RGBA pixels. |
-| [`LoadGLTFTextures`](#loadgltftextures) | raytracing | Uploads glTF textures into Vulkan image resources. |
-| [`NewGLTFModel`](#newgltfmodel) | raytracing | Builds a `GLTFModel` from ready-made GPU resources. |
-| [`LoadGLTFModel`](#loadgltfmodel) | raytracing | Loads a glTF scene and prepares RT GPU data. |
-| [`NewBufferWithDeviceAddress`](#newbufferwithdeviceaddress) | raytracing | Creates a host-visible buffer with a device address. |
-| [`NewDeviceLocalBuffer`](#newdevicelocalbuffer) | raytracing | Creates a device-local buffer with a device address. |
-| [`GetBufferDeviceAddress`](#getbufferdeviceaddress) | raytracing | Returns the device address of a given buffer. |
-| [`NewSBT`](#newsbt) | raytracing | Creates a shader binding table for an RT pipeline. |
+| Function                                                            | Layer         | Description                                                    |
+|---------------------------------------------------------------------|---------------|----------------------------------------------------------------|
+| [`SetDebug`](#setdebug)                                             | common        | Enables or disables internal debug mode.                       |
+| [`NewExtentSize`](#newextentsize)                                   | common        | Creates a `vk.Extent2D` from `int` dimensions.                 |
+| [`GetDeviceExtensions`](#getdeviceextensions)                       | common        | Returns device extension names supported by the GPU.           |
+| [`CheckDeviceExtensions`](#checkdeviceextensions)                   | common        | Verifies that the GPU supports required extensions.            |
+| [`CheckDeviceApiVersion`](#checkdeviceapiversion)                   | common        | Verifies the minimum Vulkan API version of the GPU.            |
+| [`NewDevice`](#newdevice)                                           | common        | Creates the basic Vulkan instance/device/surface context.      |
+| [`NewDeviceWithOptions`](#newdevicewithoptions)                     | common        | Creates a Vulkan context with advanced options.                |
+| [`NewAndroidSurface`](#newandroidsurface)                           | Android       | Creates an Android surface from a native window.               |
+| [`AndroidExtensions`](#androidextensions)                           | Android       | Returns required Android instance extensions.                  |
+| [`MakeCString`](#makecstring)                                       | common        | Appends a null terminator to a Go string.                      |
+| [`LoadShaderFromBytes`](#loadshaderfrombytes)                       | common        | Creates a shader module from raw SPIR-V data.                  |
+| [`NewCommandContext`](#newcommandcontext)                           | common        | Creates a command pool and optional command buffers.           |
+| [`NewSwapchain`](#newswapchain)                                     | common        | Creates a swapchain and selects a surface format.              |
+| [`NewBuffer`](#newbuffer)                                           | common        | Creates the default triangle vertex buffer.                    |
+| [`NewBufferWithData`](#newbufferwithdata)                           | common        | Creates a vertex buffer from `[]float32`.                      |
+| [`NewBufferResource`](#newbufferresource)                           | common        | Creates a generic Vulkan buffer resource.                      |
+| [`NewBufferHostVisible`](#newbufferhostvisible)                     | common        | Creates a host-visible buffer from a typed slice.              |
+| [`NewBufferDeviceLocal`](#newbufferdevicelocal)                     | common        | Creates a device-local buffer resource.                        |
+| [`NewIndexBuffer`](#newindexbuffer)                                 | common        | Creates an index buffer from `[]uint16`.                       |
+| [`NewIndexBuffer32`](#newindexbuffer32)                             | common        | Creates an index buffer from `[]uint32`.                       |
+| [`NewImageResourceFromHandles`](#newimageresourcefromhandles)       | common        | Wraps existing image handles into a resource type.             |
+| [`NewImageTexture`](#newimagetexture)                               | common        | Creates a 2D texture from RGBA pixels.                         |
+| [`NewImageTextureWithSampler`](#newimagetexturewithsampler)         | common        | Uploads a texture through staging and creates a sampler.       |
+| [`NewImageStorage`](#newimagestorage)                               | common        | Creates a storage image and transitions it to `General`.       |
+| [`NewImageDepth`](#newimagedepth)                                   | common        | Creates a depth image with a view.                             |
+| [`TransitionImageLayout`](#transitionimagelayout)                   | common        | Performs a one-time image layout transition.                   |
+| [`NewUniformBuffers`](#newuniformbuffers)                           | common        | Creates a set of uniform buffers.                              |
+| [`NewDescriptorUBO`](#newdescriptorubo)                             | common        | Prepares descriptor sets for a UBO only.                       |
+| [`NewDescriptorUBOTexture`](#newdescriptorubotexture)               | common        | Prepares descriptor sets for a UBO and a texture.              |
+| [`NewSyncObjects`](#newsyncobjects)                                 | common        | Creates a fence and semaphore for synchronization.             |
+| [`LoadModel`](#loadmodel)                                           | common        | Loads a glTF/GLB model without textures.                       |
+| [`LoadGLBModel`](#loadglbmodel)                                     | common        | Loads a textured glTF/GLB model.                               |
+| [`DegreesToRadians`](#degreestoradians)                             | common        | Converts degrees to radians.                                   |
+| [`RadiansToDegrees`](#radianstodegrees)                             | common        | Converts radians to degrees.                                   |
+| [`AlignUp`](#alignup)                                               | common        | Rounds a size up to a multiple of the alignment.               |
+| [`Vec2MultInner`](#vec2multinner)                                   | common        | Computes the dot product of two `Vec2` values.                 |
+| [`Vec3MultInner`](#vec3multinner)                                   | common        | Computes the dot product of two `Vec3` values.                 |
+| [`Vec4MultInner`](#vec4multinner)                                   | common        | Computes the dot product of two `Vec4` values.                 |
+| [`Vec4MultInner3`](#vec4multinner3)                                 | common        | Computes the dot product of the first three `Vec4` components. |
+| [`QuatMultInner3`](#quatmultinner3)                                 | common        | Computes the inner product of the first three components.      |
+| [`QuatInnerProduct`](#quatinnerproduct)                             | common        | Computes the full dot product of two quaternions.              |
+| [`InvertMatrix`](#invertmatrix)                                     | common        | Returns a matrix inverse with identity fallback.               |
+| [`DumpMatrix`](#dumpmatrix)                                         | common        | Writes a matrix into a debug string.                           |
+| [`NewRasterPass`](#newrasterpass)                                   | rasterization | Creates a render pass with one color attachment.               |
+| [`NewRasterPassWithDepth`](#newrasterpasswithdepth)                 | rasterization | Creates a render pass with color and depth attachments.        |
+| [`NewGraphicsPipelineWithOptions`](#newgraphicspipelinewithoptions) | rasterization | Creates a graphics pipeline from the provided options.         |
+| [`RaytracingExtensions`](#raytracingextensions)                     | raytracing    | Returns the list of required RT device extensions.             |
+| [`DecodeGLTFTexture`](#decodegltftexture)                           | raytracing    | Decodes a glTF image into RGBA pixels.                         |
+| [`LoadGLTFTextures`](#loadgltftextures)                             | raytracing    | Uploads glTF textures into Vulkan image resources.             |
+| [`NewGLTFModel`](#newgltfmodel)                                     | raytracing    | Builds a `GLTFModel` from ready-made GPU resources.            |
+| [`LoadGLTFModel`](#loadgltfmodel)                                   | raytracing    | Loads a glTF scene and prepares RT GPU data.                   |
+| [`NewBufferWithDeviceAddress`](#newbufferwithdeviceaddress)         | raytracing    | Creates a host-visible buffer with a device address.           |
+| [`NewDeviceLocalBuffer`](#newdevicelocalbuffer)                     | raytracing    | Creates a device-local buffer with a device address.           |
+| [`GetBufferDeviceAddress`](#getbufferdeviceaddress)                 | raytracing    | Returns the device address of a given buffer.                  |
+| [`NewSBT`](#newsbt)                                                 | raytracing    | Creates a shader binding table for an RT pipeline.             |
 
 ## Structures In Detail
 
@@ -335,43 +369,6 @@ Runs all registered destroyers in reverse order. That preserves the typical Vulk
 
 Creates a `vk.ShaderModule` directly from raw SPIR-V bytes. The caller remains responsible for the module lifetime.
 
-## VulkanCommandContext{}
-
-<a id="newcommandcontext"></a>
-### `NewCommandContext()`
-`func NewCommandContext(device vk.Device, queueFamilyIndex, commandBufferCount uint32) (VulkanCommandContext, error)`
-
-Creates a resettable command pool and optionally preallocates a set of primary command buffers. Typically used both for frame command buffers and transient upload operations.
-
-<a id="commandcontext-getcmdpool"></a>
-### `(*VulkanCommandContext).GetCmdPool`
-`func (c *VulkanCommandContext) GetCmdPool() vk.CommandPool`
-
-Returns the command pool handle managed by the context. Useful when another API expects a raw `vk.CommandPool`.
-
-<a id="commandcontext-getcmdbuffers"></a>
-### `(*VulkanCommandContext).GetCmdBuffers`
-`func (c *VulkanCommandContext) GetCmdBuffers() []vk.CommandBuffer`
-
-Returns the preallocated command buffers. The library does not record or rotate them automatically; that remains the caller's responsibility.
-
-<a id="commandcontext-beginonetime"></a>
-### `(*VulkanCommandContext).BeginOneTime`
-`func (c *VulkanCommandContext) BeginOneTime() (vk.CommandBuffer, error)`
-
-Allocates a transient primary command buffer and immediately begins it with `OneTimeSubmit`. Suitable for short uploads and layout transitions.
-
-<a id="commandcontext-endonetime"></a>
-### `(*VulkanCommandContext).EndOneTime`
-`func (c *VulkanCommandContext) EndOneTime(queue vk.Queue, cmd vk.CommandBuffer) error`
-
-Ends, submits, and synchronously completes a one-time command buffer. After completion it frees the buffer back to the command pool.
-
-<a id="commandcontext-destroy"></a>
-### `(*VulkanCommandContext).Destroy`
-`func (c *VulkanCommandContext) Destroy()`
-
-Frees all preallocated command buffers and then destroys the command pool. It safely handles partially initialized states as well.
 
 <a id="newswapchain"></a>
 
