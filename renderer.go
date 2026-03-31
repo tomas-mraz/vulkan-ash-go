@@ -6,15 +6,15 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// VulkanRasterPassInfo owns a render pass used by rasterization pipelines.
+// RasterizationPass owns a render pass used by rasterization pipelines.
 // Framebuffers remain owned by VulkanSwapchainInfo and command buffers by CommandContext.
-type VulkanRasterPassInfo struct {
+type RasterizationPass struct {
 	device     vk.Device
 	RenderPass vk.RenderPass
 }
 
 // NewRasterPass creates a render pass with a single color attachment.
-func NewRasterPass(device vk.Device, displayFormat vk.Format) (VulkanRasterPassInfo, error) {
+func NewRasterPass(device vk.Device, displayFormat vk.Format) (RasterizationPass, error) {
 	colorRef := []vk.AttachmentReference{{
 		Attachment: 0,
 		Layout:     vk.ImageLayoutColorAttachmentOptimal,
@@ -43,7 +43,7 @@ func NewRasterPass(device vk.Device, displayFormat vk.Format) (VulkanRasterPassI
 }
 
 // NewRasterPassWithDepth creates a render pass with color + depth attachments.
-func NewRasterPassWithDepth(device vk.Device, displayFormat vk.Format, depthFormat vk.Format) (VulkanRasterPassInfo, error) {
+func NewRasterPassWithDepth(device vk.Device, displayFormat vk.Format, depthFormat vk.Format) (RasterizationPass, error) {
 	colorRef := []vk.AttachmentReference{{
 		Attachment: 0,
 		Layout:     vk.ImageLayoutColorAttachmentOptimal,
@@ -87,8 +87,8 @@ func NewRasterPassWithDepth(device vk.Device, displayFormat vk.Format, depthForm
 	return createRasterPass(device, rpInfo)
 }
 
-func createRasterPass(device vk.Device, renderPassInfo vk.RenderPassCreateInfo) (VulkanRasterPassInfo, error) {
-	var r VulkanRasterPassInfo
+func createRasterPass(device vk.Device, renderPassInfo vk.RenderPassCreateInfo) (RasterizationPass, error) {
+	var r RasterizationPass
 	err := vk.Error(vk.CreateRenderPass(device, &renderPassInfo, nil, &r.RenderPass))
 	if err != nil {
 		return r, fmt.Errorf("vk.CreateRenderPass failed with %s", err)
@@ -97,11 +97,11 @@ func createRasterPass(device vk.Device, renderPassInfo vk.RenderPassCreateInfo) 
 	return r, nil
 }
 
-func (r *VulkanRasterPassInfo) GetRenderPass() vk.RenderPass {
+func (r *RasterizationPass) GetRenderPass() vk.RenderPass {
 	return r.RenderPass
 }
 
-func (r *VulkanRasterPassInfo) Destroy() {
+func (r *RasterizationPass) Destroy() {
 	if r == nil {
 		return
 	}

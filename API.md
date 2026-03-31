@@ -29,10 +29,10 @@ Public API of the `ash` package. The overview below is split into exported struc
 | [`ArrayFloat32`](#struct-arrayfloat32)                    | common        | Helper alias for a byte view over `[]float32`.                   |
 | [`PipelineOptions`](#struct-pipelineoptions)              | rasterization | Shader, layout, and state configuration for a graphics pipeline. |
 | [`PipelineRasterizationInfo`](#pipelinerasterizationinfo) | rasterization | Handles for the graphics pipeline, layout, and cache.            |
-| [`VulkanRasterPassInfo`](#struct-vulkanrasterpassinfo)    | rasterization | Wrapper over a rasterization render pass.                        |
-| [`AccelerationStructure`](#struct-accelerationstructure)  | raytracing    | Acceleration structure including its backing buffer.             |
-| [`GLTFPrimitive`](#struct-gltfprimitive)                  | raytracing    | GPU data for one glTF primitive used in RT.                      |
-| [`GLTFModel`](#struct-gltfmodel)                          | raytracing    | Complete RT model with primitives, textures, and BLAS.           |
+| [`RasterizationPass`](#struct-rasterizationpass)          | rasterization | Wrapper over a rasterization render pass.                        |
+| [`AccelerationStructure`](#accelerationstructure)         | raytracing    | Acceleration structure including its backing buffer.             |
+| [`GLTFPrimitive`](#gltfprimitive)                         | raytracing    | GPU data for one glTF primitive used in RT.                      |
+| [`GLTFModel`](#gltfmodel)                                 | raytracing    | Complete RT model with primitives, textures, and BLAS.           |
 | [`ShaderBindingTable`](#shaderbindingtable)               | raytracing    | Shader binding table and its address regions.                    |
 
 # Structures detailed description
@@ -71,6 +71,18 @@ Frees all preallocated command buffers and then destroys the command pool. It sa
 ## PipelineRasterizationInfo{}
 
 Wrapper over the created graphics pipeline, pipeline layout, and pipeline cache.
+
+<a id="struct-accelerationstructure"></a>
+## AccelerationStructure{}
+Owner of a Vulkan acceleration structure handle, its backing buffer, and an optional device address.
+
+<a id="gltfprimitive"></a>
+## GLTFPrimitive{}
+GPU representation of a single glTF primitive for ray tracing, including vertex/index buffers and texture indices.
+
+<a id="gltfmodel"></a>
+## GLTFModel{}
+Complete ray tracing model made of primitives, a geometry buffer, textures, and one BLAS.
 
 <a id="shaderbindingtable"></a>
 ## ShaderBindingTable{}
@@ -258,25 +270,10 @@ Alias over `[]float32` with helpers for obtaining the size and a byte view witho
 
 Configures the rasterization graphics pipeline: shaders, push constants, descriptor layouts, vertex layout, and depth testing.
 
-<a id="struct-vulkanrasterpassinfo"></a>
-### `VulkanRasterPassInfo`
+<a id="struct-rasterizationpass"></a>
+### `RasterizationPass`
 
 Simple owner of a `vk.RenderPass` handle for rasterization.
-
-<a id="struct-accelerationstructure"></a>
-### `AccelerationStructure`
-
-Owner of a Vulkan acceleration structure handle, its backing buffer, and an optional device address.
-
-<a id="struct-gltfprimitive"></a>
-### `GLTFPrimitive`
-
-GPU representation of a single glTF primitive for ray tracing, including vertex/index buffers and texture indices.
-
-<a id="struct-gltfmodel"></a>
-### `GLTFModel`
-
-Complete ray tracing model made of primitives, a geometry buffer, textures, and one BLAS.
 
 
 ## Common
@@ -1177,25 +1174,25 @@ Returns a byte view over the `ArrayFloat32` data without copying.
 
 <a id="newrasterpass"></a>
 ### `NewRasterPass`
-`func NewRasterPass(device vk.Device, displayFormat vk.Format) (VulkanRasterPassInfo, error)`
+`func NewRasterPass(device vk.Device, displayFormat vk.Format) (RasterizationPass, error)`
 
 Creates a simple render pass with a single color attachment and presentation to the swapchain. This is the basic helper for rasterization pipelines.
 
 <a id="newrasterpasswithdepth"></a>
 ### `NewRasterPassWithDepth`
-`func NewRasterPassWithDepth(device vk.Device, displayFormat vk.Format, depthFormat vk.Format) (VulkanRasterPassInfo, error)`
+`func NewRasterPassWithDepth(device vk.Device, displayFormat vk.Format, depthFormat vk.Format) (RasterizationPass, error)`
 
 Extends `NewRasterPass` with a depth attachment and depth/stencil layout setup. Suitable for common 3D rendering.
 
 <a id="vulkanrasterpassinfo-getrenderpass"></a>
-### `(*VulkanRasterPassInfo).GetRenderPass`
-`func (r *VulkanRasterPassInfo) GetRenderPass() vk.RenderPass`
+### `(*RasterizationPass).GetRenderPass`
+`func (r *RasterizationPass) GetRenderPass() vk.RenderPass`
 
 Returns the `vk.RenderPass` handle wrapped by the helper type.
 
 <a id="vulkanrasterpassinfo-destroy"></a>
-### `(*VulkanRasterPassInfo).Destroy`
-`func (r *VulkanRasterPassInfo) Destroy()`
+### `(*RasterizationPass).Destroy`
+`func (r *RasterizationPass) Destroy()`
 
 Destroys the render pass if it is valid. It is safe to call even on a null or already cleaned-up state.
 
