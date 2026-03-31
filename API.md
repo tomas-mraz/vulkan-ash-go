@@ -9,7 +9,7 @@ Public API of the `ash` package. The overview below is split into exported struc
 | [`Vulkan`](#struct-vulkan)                                           | common        | Main Vulkan context with instance, device, surface, and queue.   |
 | [`DeviceOptions`](#struct-deviceoptions)                             | common        | Options for advanced Vulkan device creation.                     |
 | [`Cleanup`](#struct-cleanup)                                         | common        | Simple LIFO registry for cleanup steps.                          |
-| [`VulkanCommandContext`](#vulkancommandcontext)                      | common        | Command pool and a set of reusable command buffers.              |
+| [`CommandContext`](#struct-commandcontext)                           | common        | Command pool and a set of reusable command buffers.              |
 | [`VulkanSwapchainInfo`](#struct-vulkanswapchaininfo)                 | common        | Metadata and handles for the swapchain and framebuffers.         |
 | [`VulkanBufferInfo`](#struct-vulkanbufferinfo)                       | common        | Simple vertex buffer helper.                                     |
 | [`BufferResourceOptions`](#struct-bufferresourceoptions)             | common        | Configuration for a generic buffer resource.                     |
@@ -28,44 +28,61 @@ Public API of the `ash` package. The overview below is split into exported struc
 | [`Mat4x4`](#struct-mat4x4)                                           | common        | 4x4 matrix for transforms and projections.                       |
 | [`ArrayFloat32`](#struct-arrayfloat32)                               | common        | Helper alias for a byte view over `[]float32`.                   |
 | [`PipelineOptions`](#struct-pipelineoptions)                         | rasterization | Shader, layout, and state configuration for a graphics pipeline. |
-| [`VulkanGfxPipelineInfo`](#struct-vulkangfxpipelineinfo)             | rasterization | Handles for the graphics pipeline, layout, and cache.            |
+| [`PipelineRasterizationInfo`](#pipelinerasterizationinfo)            | rasterization | Handles for the graphics pipeline, layout, and cache.            |
 | [`VulkanRasterPassInfo`](#struct-vulkanrasterpassinfo)               | rasterization | Wrapper over a rasterization render pass.                        |
 | [`VulkanAccelerationStructure`](#struct-vulkanaccelerationstructure) | raytracing    | Acceleration structure including its backing buffer.             |
 | [`GLTFPrimitive`](#struct-gltfprimitive)                             | raytracing    | GPU data for one glTF primitive used in RT.                      |
 | [`GLTFModel`](#struct-gltfmodel)                                     | raytracing    | Complete RT model with primitives, textures, and BLAS.           |
-| [`VulkanSBT`](#struct-vulkansbt)                                     | raytracing    | Shader binding table and its address regions.                    |
+| [`VulkanSBT`](#vulkansbt)                                            | raytracing    | Shader binding table and its address regions.                    |
 
 # Structures detailed description
 
-<a id="vulkancommandcontext"></a>
-## VulkanCommandContext{}
+<a id="commandcontext"></a>
+## CommandContext{}
 
 ### `NewCommandContext()`
 Creates a resettable command pool and optionally preallocates a set of primary command buffers. Typically used both for frame command buffers and transient upload operations.  
-`func NewCommandContext(device vk.Device, queueFamilyIndex, commandBufferCount uint32) (VulkanCommandContext, error)`
+`func NewCommandContext(device vk.Device, queueFamilyIndex, commandBufferCount uint32) (CommandContext, error)`
 
-### `(*VulkanCommandContext).GetCmdPool`
+### `(*CommandContext).GetCmdPool`
 Returns the command pool handle managed by the context. Useful when another API expects a raw `vk.CommandPool`.  
-`func (c *VulkanCommandContext) GetCmdPool() vk.CommandPool`
+`func (c *CommandContext) GetCmdPool() vk.CommandPool`
 
 
-### `(*VulkanCommandContext).GetCmdBuffers`
+### `(*CommandContext).GetCmdBuffers`
 Returns the preallocated command buffers. The library does not record or rotate them automatically; that remains the caller's responsibility.  
-`func (c *VulkanCommandContext) GetCmdBuffers() []vk.CommandBuffer`
+`func (c *CommandContext) GetCmdBuffers() []vk.CommandBuffer`
 
 
-### `(*VulkanCommandContext).BeginOneTime`
+### `(*CommandContext).BeginOneTime`
 Allocates a transient primary command buffer and immediately begins it with `OneTimeSubmit`. Suitable for short uploads and layout transitions.  
-`func (c *VulkanCommandContext) BeginOneTime() (vk.CommandBuffer, error)`
+`func (c *CommandContext) BeginOneTime() (vk.CommandBuffer, error)`
 
 
-### `(*VulkanCommandContext).EndOneTime`
+### `(*CommandContext).EndOneTime`
 Ends, submits, and synchronously completes a one-time command buffer. After completion it frees the buffer back to the command pool.  
-`func (c *VulkanCommandContext) EndOneTime(queue vk.Queue, cmd vk.CommandBuffer) error`
+`func (c *CommandContext) EndOneTime(queue vk.Queue, cmd vk.CommandBuffer) error`
 
-### `(*VulkanCommandContext).Destroy`
+### `(*CommandContext).Destroy`
 Frees all preallocated command buffers and then destroys the command pool. It safely handles partially initialized states as well.  
 
+
+<a id="pipelinerasterizationinfo"></a>
+## PipelineRasterizationInfo{}
+
+Wrapper over the created graphics pipeline, pipeline layout, and pipeline cache.
+
+<a id="vulkansbt"></a>
+## VulkanSBT{}
+Shader binding table buffer and the computed `StridedDeviceAddressRegion` values for raygen, miss, hit, and callable groups.
+
+### `NewSBT()`
+Creates a shader binding table from an RT pipeline and computes its `StridedDeviceAddressRegion` values for raygen, miss, hit, and callable groups. Alignment is controlled by `handleAlignment` from Vulkan ray tracing properties.  
+`func NewSBT(device vk.Device, gpu vk.PhysicalDevice, pipeline vk.Pipeline, handleSize, handleAlignment uint32, raygenCount, missCount, hitCount, callableCount uint32) (VulkanSBT, error)`
+
+
+### `(*VulkanSBT).Destroy()`
+Frees the buffer that stores the shader binding table.
 
 
 
@@ -146,8 +163,8 @@ Options for `NewDeviceWithOptions`, especially device extensions, `pNext` chains
 
 Simple LIFO registry of cleanup objects implementing `Destroy()`.
 
-<a id="struct-vulkancommandcontext"></a>
-### `VulkanCommandContext`
+<a id="struct-commandcontext"></a>
+### `CommandContext`
 
 Manages a command pool and a set of reusable command buffers plus helpers for one-time command buffers.
 
@@ -241,11 +258,6 @@ Alias over `[]float32` with helpers for obtaining the size and a byte view witho
 
 Configures the rasterization graphics pipeline: shaders, push constants, descriptor layouts, vertex layout, and depth testing.
 
-<a id="struct-vulkangfxpipelineinfo"></a>
-### `VulkanGfxPipelineInfo`
-
-Wrapper over the created graphics pipeline, pipeline layout, and pipeline cache.
-
 <a id="struct-vulkanrasterpassinfo"></a>
 ### `VulkanRasterPassInfo`
 
@@ -266,10 +278,6 @@ GPU representation of a single glTF primitive for ray tracing, including vertex/
 
 Complete ray tracing model made of primitives, a geometry buffer, textures, and one BLAS.
 
-<a id="struct-vulkansbt"></a>
-### `VulkanSBT`
-
-Shader binding table buffer and the computed `StridedDeviceAddressRegion` values for raygen, miss, hit, and callable groups.
 
 ## Common
 
@@ -537,7 +545,7 @@ Creates a linearly tiled 2D texture from RGBA pixels and adds a simple nearest s
 
 <a id="newimagetexturewithsampler"></a>
 ### `NewImageTextureWithSampler`
-`func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext, width, height uint32, rgbaPixels []byte, samplerInfo vk.SamplerCreateInfo) (VulkanImageResource, error)`
+`func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, width, height uint32, rgbaPixels []byte, samplerInfo vk.SamplerCreateInfo) (VulkanImageResource, error)`
 
 Uploads a texture through a staging buffer into an optimally tiled sampled image and creates a sampler from the provided `samplerInfo`. The function performs the required layout transitions during upload.
 
@@ -1193,25 +1201,25 @@ Destroys the render pass if it is valid. It is safe to call even on a null or al
 
 <a id="newgraphicspipelinewithoptions"></a>
 ### `NewGraphicsPipelineWithOptions`
-`func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass, opts PipelineOptions) (VulkanGfxPipelineInfo, error)`
+`func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass, opts PipelineOptions) (PipelineRasterizationInfo, error)`
 
 Creates a full graphics pipeline including the layout and pipeline cache. Behavior is controlled by `PipelineOptions`, which configure shaders, descriptor set layouts, vertex layout, and depth testing.
 
-<a id="vulkangfxpipelineinfo-getlayout"></a>
-### `(*VulkanGfxPipelineInfo).GetLayout`
-`func (gfx *VulkanGfxPipelineInfo) GetLayout() vk.PipelineLayout`
+<a id="pipelinerasterizationinfo-getlayout"></a>
+### `(*PipelineRasterizationInfo).GetLayout`
+`func (gfx *PipelineRasterizationInfo) GetLayout() vk.PipelineLayout`
 
 Returns the `vk.PipelineLayout` created together with the pipeline.
 
-<a id="vulkangfxpipelineinfo-getpipeline"></a>
-### `(*VulkanGfxPipelineInfo).GetPipeline`
-`func (gfx *VulkanGfxPipelineInfo) GetPipeline() vk.Pipeline`
+<a id="pipelinerasterizationinfo-getpipeline"></a>
+### `(*PipelineRasterizationInfo).GetPipeline`
+`func (gfx *PipelineRasterizationInfo) GetPipeline() vk.Pipeline`
 
 Returns the graphics pipeline handle itself.
 
-<a id="vulkangfxpipelineinfo-destroy"></a>
-### `(*VulkanGfxPipelineInfo).Destroy`
-`func (gfx *VulkanGfxPipelineInfo) Destroy()`
+<a id="pipelinerasterizationinfo-destroy"></a>
+### `(*PipelineRasterizationInfo).Destroy`
+`func (gfx *PipelineRasterizationInfo) Destroy()`
 
 Destroys the pipeline, cache, and layout. The caller must ensure the GPU is no longer using them.
 
@@ -1231,7 +1239,7 @@ Decodes an image from a glTF document into tightly packed RGBA pixels and also r
 
 <a id="loadgltftextures"></a>
 ### `LoadGLTFTextures`
-`func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext, doc *gltf.Document, baseDir string) ([]VulkanImageResource, error)`
+`func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, doc *gltf.Document, baseDir string) ([]VulkanImageResource, error)`
 
 Uploads all textures from a glTF document into Vulkan image resources. Index `0` always contains a 1x1 white fallback texture for simpler shader indexing.
 
@@ -1249,7 +1257,7 @@ Frees all primitive vertex/index buffers, textures, the geometry buffer, and the
 
 <a id="loadgltfmodel"></a>
 ### `LoadGLTFModel`
-`func LoadGLTFModel(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext, path string) (GLTFModel, error)`
+`func LoadGLTFModel(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, path string) (GLTFModel, error)`
 
 Loads a glTF scene, creates vertex/index buffers for each primitive, uploads textures, builds a geometry SSBO, and constructs one BLAS for the whole model. This is the main high-level loader for RT examples.
 
@@ -1283,14 +1291,3 @@ Creates a device-local buffer with shader device address support. Unlike `NewBuf
 
 Returns the device address of the given Vulkan buffer. Mainly used when building acceleration structures and shader binding tables.
 
-<a id="newsbt"></a>
-### `NewSBT`
-`func NewSBT(device vk.Device, gpu vk.PhysicalDevice, pipeline vk.Pipeline, handleSize, handleAlignment uint32, raygenCount, missCount, hitCount, callableCount uint32) (VulkanSBT, error)`
-
-Creates a shader binding table from an RT pipeline and computes its `StridedDeviceAddressRegion` values for raygen, miss, hit, and callable groups. Alignment is controlled by `handleAlignment` from Vulkan ray tracing properties.
-
-<a id="vulkansbt-destroy"></a>
-### `(*VulkanSBT).Destroy`
-`func (s *VulkanSBT) Destroy()`
-
-Frees the buffer that stores the shader binding table.

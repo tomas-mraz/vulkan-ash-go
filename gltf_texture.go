@@ -52,7 +52,7 @@ func DecodeGLTFTexture(doc *gltf.Document, baseDir string, imageIndex int) ([]by
 
 // LoadGLTFTextures loads glTF textures into Vulkan image resources.
 // Index 0 always contains a 1x1 white fallback texture.
-func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext, doc *gltf.Document, baseDir string) ([]VulkanImageResource, error) {
+func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, doc *gltf.Document, baseDir string) ([]VulkanImageResource, error) {
 	textures := make([]VulkanImageResource, 0, len(doc.Textures)+1)
 
 	fallback, err := newFallbackGLTFTexture(dev, gpu, queue, cmdCtx)
@@ -89,7 +89,7 @@ func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdC
 	return textures, nil
 }
 
-func newFallbackGLTFTexture(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext) (VulkanImageResource, error) {
+func newFallbackGLTFTexture(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext) (VulkanImageResource, error) {
 	return NewImageTextureWithSampler(dev, gpu, queue, cmdCtx, 1, 1, []byte{255, 255, 255, 255}, defaultGLTFSamplerCreateInfo())
 }
 

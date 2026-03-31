@@ -7,7 +7,7 @@ import (
 )
 
 // VulkanRasterPassInfo owns a render pass used by rasterization pipelines.
-// Framebuffers remain owned by VulkanSwapchainInfo and command buffers by VulkanCommandContext.
+// Framebuffers remain owned by VulkanSwapchainInfo and command buffers by CommandContext.
 type VulkanRasterPassInfo struct {
 	device     vk.Device
 	RenderPass vk.RenderPass

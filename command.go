@@ -6,9 +6,9 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// VulkanCommandContext owns a command pool plus reusable frame command buffers.
+// CommandContext owns a command pool plus reusable frame command buffers.
 // It also provides helpers for transient single-use command buffers.
-type VulkanCommandContext struct {
+type CommandContext struct {
 	device     vk.Device
 	cmdPool    vk.CommandPool
 	cmdBuffers []vk.CommandBuffer
@@ -16,8 +16,8 @@ type VulkanCommandContext struct {
 
 // NewCommandContext creates a resettable command pool and optionally allocates
 // a fixed set of primary command buffers for per-frame recording.
-func NewCommandContext(device vk.Device, queueFamilyIndex, commandBufferCount uint32) (VulkanCommandContext, error) {
-	var ctx VulkanCommandContext
+func NewCommandContext(device vk.Device, queueFamilyIndex, commandBufferCount uint32) (CommandContext, error) {
+	var ctx CommandContext
 	ctx.device = device
 
 	err := vk.Error(vk.CreateCommandPool(device, &vk.CommandPoolCreateInfo{
@@ -49,16 +49,16 @@ func NewCommandContext(device vk.Device, queueFamilyIndex, commandBufferCount ui
 	return ctx, nil
 }
 
-func (c *VulkanCommandContext) GetCmdPool() vk.CommandPool {
+func (c *CommandContext) GetCmdPool() vk.CommandPool {
 	return c.cmdPool
 }
 
-func (c *VulkanCommandContext) GetCmdBuffers() []vk.CommandBuffer {
+func (c *CommandContext) GetCmdBuffers() []vk.CommandBuffer {
 	return c.cmdBuffers
 }
 
 // BeginOneTime allocates and begins a transient primary command buffer.
-func (c *VulkanCommandContext) BeginOneTime() (vk.CommandBuffer, error) {
+func (c *CommandContext) BeginOneTime() (vk.CommandBuffer, error) {
 	cmds := make([]vk.CommandBuffer, 1)
 	err := vk.Error(vk.AllocateCommandBuffers(c.device, &vk.CommandBufferAllocateInfo{
 		SType:              vk.StructureTypeCommandBufferAllocateInfo,
@@ -86,7 +86,7 @@ func (c *VulkanCommandContext) BeginOneTime() (vk.CommandBuffer, error) {
 }
 
 // EndOneTime ends, submits, waits, and frees a transient command buffer.
-func (c *VulkanCommandContext) EndOneTime(queue vk.Queue, cmd vk.CommandBuffer) error {
+func (c *CommandContext) EndOneTime(queue vk.Queue, cmd vk.CommandBuffer) error {
 	err := vk.Error(vk.EndCommandBuffer(cmd))
 	if err != nil {
 		vk.FreeCommandBuffers(c.device, c.cmdPool, 1, []vk.CommandBuffer{cmd})
@@ -123,7 +123,7 @@ func (c *VulkanCommandContext) EndOneTime(queue vk.Queue, cmd vk.CommandBuffer) 
 }
 
 // Destroy frees reusable command buffers and destroys the command pool.
-func (c *VulkanCommandContext) Destroy() {
+func (c *CommandContext) Destroy() {
 	if c == nil {
 		return
 	}

@@ -20,7 +20,7 @@ type gltfGeometryNode struct {
 
 // LoadGLTFModel loads a glTF scene into GPU buffers, creates the geometry SSBO,
 // and builds a single BLAS containing one geometry per primitive.
-func LoadGLTFModel(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext, path string) (GLTFModel, error) {
+func LoadGLTFModel(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, path string) (GLTFModel, error) {
 	doc, err := gltf.Open(path)
 	if err != nil {
 		return GLTFModel{}, fmt.Errorf("gltf.Open: %w", err)
@@ -183,7 +183,7 @@ func createGLTFGeometryNodesBuffer(dev vk.Device, gpu vk.PhysicalDevice, prims [
 	return buf, nil
 }
 
-func buildGLTFModelBLAS(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext, prims []GLTFPrimitive) (VulkanAccelerationStructure, error) {
+func buildGLTFModelBLAS(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, prims []GLTFPrimitive) (VulkanAccelerationStructure, error) {
 	geometries := make([]vk.AccelerationStructureGeometry, 0, len(prims))
 	primitiveCounts := make([]uint32, 0, len(prims))
 	rangeInfos := make([]vk.AccelerationStructureBuildRangeInfo, 0, len(prims))

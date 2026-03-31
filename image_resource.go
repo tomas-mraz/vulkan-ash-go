@@ -144,7 +144,7 @@ func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint
 
 // NewImageTextureWithSampler uploads RGBA pixels through a staging buffer into an
 // optimal-tiled sampled image and creates a sampler from samplerInfo.
-func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext, width, height uint32, rgbaPixels []byte, samplerInfo vk.SamplerCreateInfo) (VulkanImageResource, error) {
+func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, width, height uint32, rgbaPixels []byte, samplerInfo vk.SamplerCreateInfo) (VulkanImageResource, error) {
 	var r VulkanImageResource
 	r.device = device
 	r.Format = vk.FormatR8g8b8a8Unorm
