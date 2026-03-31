@@ -7,9 +7,9 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// VulkanSBT holds a shader binding table buffer and the strided device address
+// ShaderBindingTable holds a shader binding table buffer and the strided device address
 // regions for each shader group type (raygen, miss, hit, callable).
-type VulkanSBT struct {
+type ShaderBindingTable struct {
 	device   vk.Device
 	Buffer   VulkanBufferResource
 	Raygen   vk.StridedDeviceAddressRegion
@@ -24,8 +24,8 @@ type VulkanSBT struct {
 func NewSBT(device vk.Device, gpu vk.PhysicalDevice, pipeline vk.Pipeline,
 	handleSize, handleAlignment uint32,
 	raygenCount, missCount, hitCount, callableCount uint32,
-) (VulkanSBT, error) {
-	var s VulkanSBT
+) (ShaderBindingTable, error) {
+	var s ShaderBindingTable
 	s.device = device
 
 	groupCount := raygenCount + missCount + hitCount + callableCount
@@ -80,7 +80,7 @@ func NewSBT(device vk.Device, gpu vk.PhysicalDevice, pipeline vk.Pipeline,
 	return s, nil
 }
 
-func (s *VulkanSBT) Destroy() {
+func (s *ShaderBindingTable) Destroy() {
 	if s == nil {
 		return
 	}

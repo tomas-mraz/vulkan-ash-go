@@ -9,7 +9,7 @@ Public API of the `ash` package. The overview below is split into exported struc
 | [`Vulkan`](#struct-vulkan)                                           | common        | Main Vulkan context with instance, device, surface, and queue.   |
 | [`DeviceOptions`](#struct-deviceoptions)                             | common        | Options for advanced Vulkan device creation.                     |
 | [`Cleanup`](#struct-cleanup)                                         | common        | Simple LIFO registry for cleanup steps.                          |
-| [`CommandContext`](#struct-commandcontext)                           | common        | Command pool and a set of reusable command buffers.              |
+| [`CommandContext`](#commandcontext)                                  | common        | Command pool and a set of reusable command buffers.              |
 | [`VulkanSwapchainInfo`](#struct-vulkanswapchaininfo)                 | common        | Metadata and handles for the swapchain and framebuffers.         |
 | [`VulkanBufferInfo`](#struct-vulkanbufferinfo)                       | common        | Simple vertex buffer helper.                                     |
 | [`BufferResourceOptions`](#struct-bufferresourceoptions)             | common        | Configuration for a generic buffer resource.                     |
@@ -33,7 +33,7 @@ Public API of the `ash` package. The overview below is split into exported struc
 | [`VulkanAccelerationStructure`](#struct-vulkanaccelerationstructure) | raytracing    | Acceleration structure including its backing buffer.             |
 | [`GLTFPrimitive`](#struct-gltfprimitive)                             | raytracing    | GPU data for one glTF primitive used in RT.                      |
 | [`GLTFModel`](#struct-gltfmodel)                                     | raytracing    | Complete RT model with primitives, textures, and BLAS.           |
-| [`VulkanSBT`](#vulkansbt)                                            | raytracing    | Shader binding table and its address regions.                    |
+| [`ShaderBindingTable`](#shaderbindingtable)                          | raytracing    | Shader binding table and its address regions.                    |
 
 # Structures detailed description
 
@@ -72,16 +72,16 @@ Frees all preallocated command buffers and then destroys the command pool. It sa
 
 Wrapper over the created graphics pipeline, pipeline layout, and pipeline cache.
 
-<a id="vulkansbt"></a>
-## VulkanSBT{}
+<a id="shaderbindingtable"></a>
+## ShaderBindingTable{}
 Shader binding table buffer and the computed `StridedDeviceAddressRegion` values for raygen, miss, hit, and callable groups.
 
 ### `NewSBT()`
 Creates a shader binding table from an RT pipeline and computes its `StridedDeviceAddressRegion` values for raygen, miss, hit, and callable groups. Alignment is controlled by `handleAlignment` from Vulkan ray tracing properties.  
-`func NewSBT(device vk.Device, gpu vk.PhysicalDevice, pipeline vk.Pipeline, handleSize, handleAlignment uint32, raygenCount, missCount, hitCount, callableCount uint32) (VulkanSBT, error)`
+`func NewSBT(device vk.Device, gpu vk.PhysicalDevice, pipeline vk.Pipeline, handleSize, handleAlignment uint32, raygenCount, missCount, hitCount, callableCount uint32) (ShaderBindingTable, error)`
 
 
-### `(*VulkanSBT).Destroy()`
+### `(*ShaderBindingTable).Destroy()`
 Frees the buffer that stores the shader binding table.
 
 
@@ -1290,4 +1290,3 @@ Creates a device-local buffer with shader device address support. Unlike `NewBuf
 `func GetBufferDeviceAddress(device vk.Device, buf vk.Buffer) vk.DeviceAddress`
 
 Returns the device address of the given Vulkan buffer. Mainly used when building acceleration structures and shader binding tables.
-
