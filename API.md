@@ -4,37 +4,37 @@ Public API of the `ash` package. The overview below is split into exported struc
 
 # Structures
 
-| Structure                                                | Layer         | Description                                                      |
-|----------------------------------------------------------|---------------|------------------------------------------------------------------|
-| [`Vulkan`](#struct-vulkan)                               | common        | Main Vulkan context with instance, device, surface, and queue.   |
-| [`DeviceOptions`](#struct-deviceoptions)                 | common        | Options for advanced Vulkan device creation.                     |
-| [`Cleanup`](#struct-cleanup)                             | common        | Simple LIFO registry for cleanup steps.                          |
-| [`CommandContext`](#commandcontext)                      | common        | Command pool and a set of reusable command buffers.              |
-| [`VulkanSwapchainInfo`](#struct-vulkanswapchaininfo)     | common        | Metadata and handles for the swapchain and framebuffers.         |
-| [`VulkanBufferInfo`](#struct-vulkanbufferinfo)           | common        | Simple vertex buffer helper.                                     |
-| [`BufferResourceOptions`](#struct-bufferresourceoptions) | common        | Configuration for a generic buffer resource.                     |
-| [`VulkanBufferResource`](#struct-vulkanbufferresource)   | common        | Generic representation of a Vulkan buffer and its memory.        |
-| [`VulkanIndexBufferInfo`](#struct-vulkanindexbufferinfo) | common        | Helper for an index buffer and its index count.                  |
-| [`VulkanImageResource`](#struct-vulkanimageresource)     | common        | Generic image resource with image, view, sampler, and memory.    |
-| [`VulkanUniformBuffers`](#struct-vulkanuniformbuffers)   | common        | Set of uniform buffers, typically one per frame.                 |
-| [`VulkanDescriptorInfo`](#struct-vulkandescriptorinfo)   | common        | Descriptor layout, pool, and allocated sets.                     |
-| [`VulkanSyncInfo`](#struct-vulkansyncinfo)               | common        | Fence and semaphore for synchronization.                         |
-| [`Model`](#struct-model)                                 | common        | Untextured glTF model in an interleaved vertex layout.           |
-| [`TexturedModel`](#struct-texturedmodel)                 | common        | Textured model including an RGBA base color texture.             |
-| [`Vec2`](#struct-vec2)                                   | common        | 2D vector type for math utilities.                               |
-| [`Vec3`](#struct-vec3)                                   | common        | 3D vector type for math utilities.                               |
-| [`Vec4`](#struct-vec4)                                   | common        | 4D vector type for math utilities.                               |
-| [`Quat`](#struct-quat)                                   | common        | Quaternion type for rotations.                                   |
-| [`Mat4x4`](#struct-mat4x4)                               | common        | 4x4 matrix for transforms and projections.                       |
-| [`ArrayFloat32`](#struct-arrayfloat32)                   | common        | Helper alias for a byte view over `[]float32`.                   |
-| [`PipelineOptions`](#struct-pipelineoptions)             | rasterization | Shader, layout, and state configuration for a graphics pipeline. |
-| [`PipelineRasterization`](#pipelinerasterization)        | rasterization | Handles for the graphics pipeline, layout, and cache.            |
-| [`RasterizationPass`](#struct-rasterizationpass)         | rasterization | Wrapper over a rasterization render pass.                        |
-| [`PipelineRaytracing`](#pipelineraytracing)              | raytracing    | Holds a ray tracing pipeline and its layout.                     |
-| [`AccelerationStructure`](#accelerationstructure)        | raytracing    | Acceleration structure including its backing buffer.             |
-| [`GLTFPrimitive`](#gltfprimitive)                        | raytracing    | GPU data for one glTF primitive used in RT.                      |
-| [`GLTFModel`](#gltfmodel)                                | raytracing    | Complete RT model with primitives, textures, and BLAS.           |
-| [`ShaderBindingTable`](#shaderbindingtable)              | raytracing    | Shader binding table and its address regions.                    |
+| Structure                                                 | Layer         | Description                                                      |
+|-----------------------------------------------------------|---------------|------------------------------------------------------------------|
+| [`Vulkan`](#struct-vulkan)                                | common        | Main Vulkan context with instance, device, surface, and queue.   |
+| [`DeviceOptions`](#struct-deviceoptions)                  | common        | Options for advanced Vulkan device creation.                     |
+| [`Cleanup`](#struct-cleanup)                              | common        | Simple LIFO registry for cleanup steps.                          |
+| [`CommandContext`](#commandcontext)                       | common        | Command pool and a set of reusable command buffers.              |
+| [`VulkanSwapchainInfo`](#struct-vulkanswapchaininfo)      | common        | Metadata and handles for the swapchain and framebuffers.         |
+| [`VulkanBufferInfo`](#struct-vulkanbufferinfo)            | common        | Simple vertex buffer helper.                                     |
+| [`BufferResourceOptions`](#struct-bufferresourceoptions)  | common        | Configuration for a generic buffer resource.                     |
+| [`VulkanBufferResource`](#struct-vulkanbufferresource)    | common        | Generic representation of a Vulkan buffer and its memory.        |
+| [`VulkanIndexBufferInfo`](#struct-vulkanindexbufferinfo)  | common        | Helper for an index buffer and its index count.                  |
+| [`VulkanImageResource`](#struct-vulkanimageresource)      | common        | Generic image resource with image, view, sampler, and memory.    |
+| [`VulkanUniformBuffers`](#struct-vulkanuniformbuffers)    | common        | Set of uniform buffers, typically one per frame.                 |
+| [`VulkanDescriptorInfo`](#struct-vulkandescriptorinfo)    | common        | Descriptor layout, pool, and allocated sets.                     |
+| [`VulkanSyncInfo`](#struct-vulkansyncinfo)                | common        | Fence and semaphore for synchronization.                         |
+| [`Model`](#struct-model)                                  | common        | Untextured glTF model in an interleaved vertex layout.           |
+| [`TexturedModel`](#struct-texturedmodel)                  | common        | Textured model including an RGBA base color texture.             |
+| [`Vec2`](#struct-vec2)                                    | common        | 2D vector type for math utilities.                               |
+| [`Vec3`](#struct-vec3)                                    | common        | 3D vector type for math utilities.                               |
+| [`Vec4`](#struct-vec4)                                    | common        | 4D vector type for math utilities.                               |
+| [`Quat`](#struct-quat)                                    | common        | Quaternion type for rotations.                                   |
+| [`Mat4x4`](#struct-mat4x4)                                | common        | 4x4 matrix for transforms and projections.                       |
+| [`ArrayFloat32`](#struct-arrayfloat32)                    | common        | Helper alias for a byte view over `[]float32`.                   |
+| [`PipelineOptions`](#struct-pipelineoptions)              | rasterization | Shader, layout, and state configuration for a graphics pipeline. |
+| [`PipelineRasterization`](#pipelinerasterization)         | rasterization | Handles for the graphics pipeline, layout, and cache.            |
+| [`RasterizationPass`](#struct-rasterizationpass)          | rasterization | Wrapper over a rasterization render pass.                        |
+| [`PipelineRaytracing`](#pipelineraytracing)               | raytracing    | Holds a ray tracing pipeline and its layout.                     |
+| [`AccelerationStructure`](#accelerationstructure)         | raytracing    | Acceleration structure including its backing buffer.             |
+| [`GLTFPrimitive`](#gltfprimitive)                         | raytracing    | GPU data for one glTF primitive used in RT.                      |
+| [`GLTFModel`](#gltfmodel)                                 | raytracing    | Complete RT model with primitives, textures, and BLAS.           |
+| [`ShaderBindingTable`](#shaderbindingtable)               | raytracing    | Shader binding table and its address regions.                    |
 
 # Structures detailed description
 
@@ -108,9 +108,10 @@ Complete ray tracing model made of primitives, a geometry buffer, textures, and 
 ## ShaderBindingTable{}
 Shader binding table buffer and the computed `StridedDeviceAddressRegion` values for raygen, miss, hit, and callable groups.
 
-### `NewSBT()`
+<a id="newshaderbindingtable"></a>
+### `NewShaderBindingTable()`
 Creates a shader binding table from an RT pipeline and computes its `StridedDeviceAddressRegion` values for raygen, miss, hit, and callable groups. Alignment is controlled by `handleAlignment` from Vulkan ray tracing properties.  
-`func NewSBT(device vk.Device, gpu vk.PhysicalDevice, pipeline vk.Pipeline, handleSize, handleAlignment uint32, raygenCount, missCount, hitCount, callableCount uint32) (ShaderBindingTable, error)`
+`func NewShaderBindingTable(device vk.Device, gpu vk.PhysicalDevice, pipeline vk.Pipeline, handleSize, handleAlignment uint32, raygenCount, missCount, hitCount, callableCount uint32) (ShaderBindingTable, error)`
 
 
 ### `(*ShaderBindingTable).Destroy()`
@@ -174,7 +175,6 @@ Frees the buffer that stores the shader binding table.
 | [`NewBufferWithDeviceAddress`](#newbufferwithdeviceaddress)         | raytracing    | Creates a host-visible buffer with a device address.           |
 | [`NewDeviceLocalBuffer`](#newdevicelocalbuffer)                     | raytracing    | Creates a device-local buffer with a device address.           |
 | [`GetBufferDeviceAddress`](#getbufferdeviceaddress)                 | raytracing    | Returns the device address of a given buffer.                  |
-| [`NewSBT`](#newsbt)                                                 | raytracing    | Creates a shader binding table for an RT pipeline.             |
 
 ## Structures In Detail
 
@@ -240,8 +240,10 @@ Holds a descriptor set layout, descriptor pool, and already allocated descriptor
 
 **Methods:** `GetLayout()`, `GetSets()`, `Destroy()`.
 
-#### Descriptor Binding System
+---
 
+<a id="newdescriptorsets"></a>
+#### Descriptor Binding System
 `NewDescriptorSets` is the general-purpose constructor for `VulkanDescriptorInfo`. It accepts a slice of `DescriptorBinding` interface values and automatically derives the layout, pool sizes, set allocation, and descriptor writes.
 
 ```go
@@ -250,14 +252,14 @@ func NewDescriptorSets(device vk.Device, setCount uint32, bindings []DescriptorB
 
 The `DescriptorBinding` interface is implemented by concrete binding types. Each type holds only the fields relevant to that descriptor kind, providing compile-time safety against misconfigured bindings.
 
-| Binding type | Descriptor type | Key fields |
-|---|---|---|
-| `BindingAccelerationStructure` | AccelerationStructure | `StageFlags`, `AccelerationStructure` |
-| `BindingStorageImage` | StorageImage | `StageFlags`, `ImageView`, `Layout` (default General) |
-| `BindingUniformBuffer` | UniformBuffer | `StageFlags`, `Uniforms` (per-frame buffer selection) |
-| `BindingStorageBuffer` | StorageBuffer | `StageFlags`, `Buffer`, `Range` (default WholeSize) |
-| `BindingImageSampler` | CombinedImageSampler | `StageFlags`, `ImageView`, `Sampler`, `ImmutableSamplers` |
-| `BindingImageSamplerArray` | CombinedImageSampler (array) | `StageFlags`, `ImageInfos`, `ImmutableSamplers` |
+| Binding type                   | Descriptor type              | Key fields                                                |
+|--------------------------------|------------------------------|-----------------------------------------------------------|
+| `BindingAccelerationStructure` | AccelerationStructure        | `StageFlags`, `AccelerationStructure`                     |
+| `BindingStorageImage`          | StorageImage                 | `StageFlags`, `ImageView`, `Layout` (default General)     |
+| `BindingUniformBuffer`         | UniformBuffer                | `StageFlags`, `Uniforms` (per-frame buffer selection)     |
+| `BindingStorageBuffer`         | StorageBuffer                | `StageFlags`, `Buffer`, `Range` (default WholeSize)       |
+| `BindingImageSampler`          | CombinedImageSampler         | `StageFlags`, `ImageView`, `Sampler`, `ImmutableSamplers` |
+| `BindingImageSamplerArray`     | CombinedImageSampler (array) | `StageFlags`, `ImageInfos`, `ImmutableSamplers`           |
 
 Binding indices are assigned sequentially (0, 1, 2, ...) based on the order in the slice.
 
@@ -313,6 +315,7 @@ desc, err := ash.NewDescriptorSets(dev, swapchainLen, []ash.DescriptorBinding{
 })
 ```
 
+---
 
 <a id="struct-vulkansyncinfo"></a>
 ### `VulkanSyncInfo`

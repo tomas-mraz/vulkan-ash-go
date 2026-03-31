@@ -18,10 +18,10 @@ type ShaderBindingTable struct {
 	Callable vk.StridedDeviceAddressRegion
 }
 
-// NewSBT creates a shader binding table from a ray tracing pipeline.
+// NewShaderBindingTable creates a shader binding table from a ray tracing pipeline.
 // Groups are laid out sequentially: raygen, miss, hit, callable.
 // handleSize and handleAlignment come from VkPhysicalDeviceRayTracingPipelinePropertiesKHR.
-func NewSBT(device vk.Device, gpu vk.PhysicalDevice, pipeline vk.Pipeline,
+func NewShaderBindingTable(device vk.Device, gpu vk.PhysicalDevice, pipeline vk.Pipeline,
 	handleSize, handleAlignment uint32,
 	raygenCount, missCount, hitCount, callableCount uint32,
 ) (ShaderBindingTable, error) {
