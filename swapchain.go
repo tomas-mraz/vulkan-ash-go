@@ -18,6 +18,8 @@ type VulkanSwapchainInfo struct {
 
 	Framebuffers []vk.Framebuffer
 	DisplayViews []vk.ImageView
+
+	swapchainImages []vk.Image // cached for CmdCopyToSwapchain
 }
 
 func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D) (VulkanSwapchainInfo, error) {
@@ -188,6 +190,73 @@ func (s *VulkanSwapchainInfo) CreateFramebuffers(renderPass vk.RenderPass, depth
 		}
 	}
 	return nil
+}
+
+func (s *VulkanSwapchainInfo) getSwapchainImages() []vk.Image {
+	if s.swapchainImages == nil {
+		var count uint32
+		vk.GetSwapchainImages(s.Device, s.DefaultSwapchain(), &count, nil)
+		s.swapchainImages = make([]vk.Image, count)
+		vk.GetSwapchainImages(s.Device, s.DefaultSwapchain(), &count, s.swapchainImages)
+	}
+	return s.swapchainImages
+}
+
+// CmdCopyToSwapchain records commands to copy a storage image to a swapchain image.
+// It transitions the swapchain image to TransferDst, the source image from General to TransferSrc,
+// performs the copy, then transitions back (swapchain to PresentSrc, source to General).
+func (s *VulkanSwapchainInfo) CmdCopyToSwapchain(cmd vk.CommandBuffer, srcImage vk.Image, imageIndex uint32) {
+	swapImages := s.getSwapchainImages()
+	dstImage := swapImages[imageIndex]
+	subresourceRange := vk.ImageSubresourceRange{
+		AspectMask: vk.ImageAspectFlags(vk.ImageAspectColorBit), LevelCount: 1, LayerCount: 1,
+	}
+
+	// Transition swapchain image to transfer dst
+	vk.CmdPipelineBarrier(cmd,
+		vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit), vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit),
+		0, 0, nil, 0, nil, 1, []vk.ImageMemoryBarrier{{
+			SType: vk.StructureTypeImageMemoryBarrier, OldLayout: vk.ImageLayoutUndefined, NewLayout: vk.ImageLayoutTransferDstOptimal,
+			Image: dstImage, SubresourceRange: subresourceRange, DstAccessMask: vk.AccessFlags(vk.AccessTransferWriteBit),
+			SrcQueueFamilyIndex: vk.QueueFamilyIgnored, DstQueueFamilyIndex: vk.QueueFamilyIgnored,
+		}})
+
+	// Transition source image to transfer src
+	vk.CmdPipelineBarrier(cmd,
+		vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit), vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit),
+		0, 0, nil, 0, nil, 1, []vk.ImageMemoryBarrier{{
+			SType: vk.StructureTypeImageMemoryBarrier, OldLayout: vk.ImageLayoutGeneral, NewLayout: vk.ImageLayoutTransferSrcOptimal,
+			Image: srcImage, SubresourceRange: subresourceRange,
+			SrcAccessMask: vk.AccessFlags(vk.AccessShaderWriteBit), DstAccessMask: vk.AccessFlags(vk.AccessTransferReadBit),
+			SrcQueueFamilyIndex: vk.QueueFamilyIgnored, DstQueueFamilyIndex: vk.QueueFamilyIgnored,
+		}})
+
+	// Copy
+	vk.CmdCopyImage(cmd, srcImage, vk.ImageLayoutTransferSrcOptimal, dstImage, vk.ImageLayoutTransferDstOptimal,
+		1, []vk.ImageCopy{{
+			SrcSubresource: vk.ImageSubresourceLayers{AspectMask: vk.ImageAspectFlags(vk.ImageAspectColorBit), LayerCount: 1},
+			DstSubresource: vk.ImageSubresourceLayers{AspectMask: vk.ImageAspectFlags(vk.ImageAspectColorBit), LayerCount: 1},
+			Extent:         vk.Extent3D{Width: s.DisplaySize.Width, Height: s.DisplaySize.Height, Depth: 1},
+		}})
+
+	// Transition swapchain image to present
+	vk.CmdPipelineBarrier(cmd,
+		vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit), vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit),
+		0, 0, nil, 0, nil, 1, []vk.ImageMemoryBarrier{{
+			SType: vk.StructureTypeImageMemoryBarrier, OldLayout: vk.ImageLayoutTransferDstOptimal, NewLayout: vk.ImageLayoutPresentSrc,
+			Image: dstImage, SubresourceRange: subresourceRange, SrcAccessMask: vk.AccessFlags(vk.AccessTransferWriteBit),
+			SrcQueueFamilyIndex: vk.QueueFamilyIgnored, DstQueueFamilyIndex: vk.QueueFamilyIgnored,
+		}})
+
+	// Transition source image back to general
+	vk.CmdPipelineBarrier(cmd,
+		vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit), vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit),
+		0, 0, nil, 0, nil, 1, []vk.ImageMemoryBarrier{{
+			SType: vk.StructureTypeImageMemoryBarrier, OldLayout: vk.ImageLayoutTransferSrcOptimal, NewLayout: vk.ImageLayoutGeneral,
+			Image: srcImage, SubresourceRange: subresourceRange,
+			SrcAccessMask: vk.AccessFlags(vk.AccessTransferReadBit), DstAccessMask: vk.AccessFlags(vk.AccessShaderWriteBit),
+			SrcQueueFamilyIndex: vk.QueueFamilyIgnored, DstQueueFamilyIndex: vk.QueueFamilyIgnored,
+		}})
 }
 
 func (s *VulkanSwapchainInfo) Destroy() {
