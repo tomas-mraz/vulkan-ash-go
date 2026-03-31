@@ -2,6 +2,7 @@ package ash
 
 import (
 	"fmt"
+	"unsafe"
 
 	vk "github.com/tomas-mraz/vulkan"
 )
@@ -33,80 +34,242 @@ func (d *VulkanDescriptorInfo) Destroy() {
 	vk.DestroyDescriptorSetLayout(d.device, d.layout, nil)
 }
 
-// NewDescriptorUBO creates descriptors with a single UBO binding at binding 0 (vertex stage).
-func NewDescriptorUBO(device vk.Device, uniforms *VulkanUniformBuffers, count uint32) (VulkanDescriptorInfo, error) {
-	var d VulkanDescriptorInfo
-	d.device = device
-
-	if err := vk.Error(vk.CreateDescriptorSetLayout(device, &vk.DescriptorSetLayoutCreateInfo{
-		SType: vk.StructureTypeDescriptorSetLayoutCreateInfo, BindingCount: 1,
-		PBindings: []vk.DescriptorSetLayoutBinding{
-			{Binding: 0, DescriptorType: vk.DescriptorTypeUniformBuffer, DescriptorCount: 1,
-				StageFlags: vk.ShaderStageFlags(vk.ShaderStageVertexBit), PImmutableSamplers: []vk.Sampler{vk.NullSampler}},
-		},
-	}, nil, &d.layout)); err != nil {
-		return d, fmt.Errorf("vk.CreateDescriptorSetLayout failed with %s", err)
-	}
-
-	if err := vk.Error(vk.CreateDescriptorPool(device, &vk.DescriptorPoolCreateInfo{
-		SType: vk.StructureTypeDescriptorPoolCreateInfo, MaxSets: count, PoolSizeCount: 1,
-		PPoolSizes: []vk.DescriptorPoolSize{
-			{Type: vk.DescriptorTypeUniformBuffer, DescriptorCount: count},
-		},
-	}, nil, &d.pool)); err != nil {
-		return d, fmt.Errorf("vk.CreateDescriptorPool failed with %s", err)
-	}
-
-	d.sets = make([]vk.DescriptorSet, count)
-	for i := uint32(0); i < count; i++ {
-		if err := vk.Error(vk.AllocateDescriptorSets(device, &vk.DescriptorSetAllocateInfo{
-			SType: vk.StructureTypeDescriptorSetAllocateInfo, DescriptorPool: d.pool,
-			DescriptorSetCount: 1, PSetLayouts: []vk.DescriptorSetLayout{d.layout},
-		}, &d.sets[i])); err != nil {
-			return d, fmt.Errorf("vk.AllocateDescriptorSets failed with %s", err)
-		}
-	}
-
-	for i := uint32(0); i < count; i++ {
-		vk.UpdateDescriptorSets(device, 1, []vk.WriteDescriptorSet{
-			{SType: vk.StructureTypeWriteDescriptorSet, DstSet: d.sets[i], DstBinding: 0, DescriptorCount: 1,
-				DescriptorType: vk.DescriptorTypeUniformBuffer,
-				PBufferInfo:    []vk.DescriptorBufferInfo{{Buffer: uniforms.GetBuffer(i), Offset: 0, Range: vk.DeviceSize(uniforms.GetSize())}}},
-		}, 0, nil)
-	}
-	return d, nil
+// DescriptorBinding describes a single binding in a descriptor set.
+// Implement this interface with one of the concrete binding types:
+// BindingAccelerationStructure, BindingStorageImage, BindingUniformBuffer,
+// BindingStorageBuffer, BindingImageSampler, BindingImageSamplerArray.
+type DescriptorBinding interface {
+	layoutBinding(index uint32) vk.DescriptorSetLayoutBinding
+	poolSize(setCount uint32) vk.DescriptorPoolSize
+	writeSet(set vk.DescriptorSet, index uint32, setIndex uint32) vk.WriteDescriptorSet
 }
 
-// NewDescriptorUBOTexture creates descriptors with UBO at binding 0 (vertex stage)
-// and a combined image sampler at binding 1 (fragment stage).
-func NewDescriptorUBOTexture(device vk.Device, uniforms *VulkanUniformBuffers, texture *VulkanImageResource, count uint32) (VulkanDescriptorInfo, error) {
+// BindingAccelerationStructure binds a top-level acceleration structure.
+type BindingAccelerationStructure struct {
+	StageFlags            vk.ShaderStageFlags
+	AccelerationStructure vk.AccelerationStructure
+	asWriteInfo           vk.WriteDescriptorSetAccelerationStructure
+}
+
+func (b *BindingAccelerationStructure) layoutBinding(index uint32) vk.DescriptorSetLayoutBinding {
+	return vk.DescriptorSetLayoutBinding{
+		Binding: index, DescriptorType: vk.DescriptorTypeAccelerationStructure,
+		DescriptorCount: 1, StageFlags: b.StageFlags,
+	}
+}
+
+func (b *BindingAccelerationStructure) poolSize(setCount uint32) vk.DescriptorPoolSize {
+	return vk.DescriptorPoolSize{Type: vk.DescriptorTypeAccelerationStructure, DescriptorCount: setCount}
+}
+
+func (b *BindingAccelerationStructure) writeSet(set vk.DescriptorSet, index uint32, _ uint32) vk.WriteDescriptorSet {
+	b.asWriteInfo = vk.WriteDescriptorSetAccelerationStructure{
+		SType:                      vk.StructureTypeWriteDescriptorSetAccelerationStructure,
+		AccelerationStructureCount: 1,
+		PAccelerationStructures:    []vk.AccelerationStructure{b.AccelerationStructure},
+	}
+	return vk.WriteDescriptorSet{
+		SType: vk.StructureTypeWriteDescriptorSet, DstSet: set, DstBinding: index,
+		DescriptorCount: 1, DescriptorType: vk.DescriptorTypeAccelerationStructure,
+		PNext: unsafe.Pointer(&b.asWriteInfo),
+	}
+}
+
+// BindingStorageImage binds a storage image (e.g. ray tracing output).
+type BindingStorageImage struct {
+	StageFlags vk.ShaderStageFlags
+	ImageView  vk.ImageView
+	Layout     vk.ImageLayout // 0 defaults to General
+}
+
+func (b *BindingStorageImage) layoutBinding(index uint32) vk.DescriptorSetLayoutBinding {
+	return vk.DescriptorSetLayoutBinding{
+		Binding: index, DescriptorType: vk.DescriptorTypeStorageImage,
+		DescriptorCount: 1, StageFlags: b.StageFlags,
+	}
+}
+
+func (b *BindingStorageImage) poolSize(setCount uint32) vk.DescriptorPoolSize {
+	return vk.DescriptorPoolSize{Type: vk.DescriptorTypeStorageImage, DescriptorCount: setCount}
+}
+
+func (b *BindingStorageImage) writeSet(set vk.DescriptorSet, index uint32, _ uint32) vk.WriteDescriptorSet {
+	layout := b.Layout
+	if layout == 0 {
+		layout = vk.ImageLayoutGeneral
+	}
+	return vk.WriteDescriptorSet{
+		SType: vk.StructureTypeWriteDescriptorSet, DstSet: set, DstBinding: index,
+		DescriptorCount: 1, DescriptorType: vk.DescriptorTypeStorageImage,
+		PImageInfo: []vk.DescriptorImageInfo{{ImageView: b.ImageView, ImageLayout: layout}},
+	}
+}
+
+// BindingUniformBuffer binds per-frame uniform buffers.
+// Each descriptor set gets the buffer at its swapchain index.
+type BindingUniformBuffer struct {
+	StageFlags vk.ShaderStageFlags
+	Uniforms   *VulkanUniformBuffers
+}
+
+func (b *BindingUniformBuffer) layoutBinding(index uint32) vk.DescriptorSetLayoutBinding {
+	return vk.DescriptorSetLayoutBinding{
+		Binding: index, DescriptorType: vk.DescriptorTypeUniformBuffer,
+		DescriptorCount: 1, StageFlags: b.StageFlags,
+		PImmutableSamplers: []vk.Sampler{vk.NullSampler},
+	}
+}
+
+func (b *BindingUniformBuffer) poolSize(setCount uint32) vk.DescriptorPoolSize {
+	return vk.DescriptorPoolSize{Type: vk.DescriptorTypeUniformBuffer, DescriptorCount: setCount}
+}
+
+func (b *BindingUniformBuffer) writeSet(set vk.DescriptorSet, index uint32, setIndex uint32) vk.WriteDescriptorSet {
+	return vk.WriteDescriptorSet{
+		SType: vk.StructureTypeWriteDescriptorSet, DstSet: set, DstBinding: index,
+		DescriptorCount: 1, DescriptorType: vk.DescriptorTypeUniformBuffer,
+		PBufferInfo: []vk.DescriptorBufferInfo{{
+			Buffer: b.Uniforms.GetBuffer(setIndex), Offset: 0,
+			Range: vk.DeviceSize(b.Uniforms.GetSize()),
+		}},
+	}
+}
+
+// BindingStorageBuffer binds a storage buffer (e.g. geometry node SSBO).
+type BindingStorageBuffer struct {
+	StageFlags vk.ShaderStageFlags
+	Buffer     vk.Buffer
+	Range      vk.DeviceSize // 0 = WholeSize
+}
+
+func (b *BindingStorageBuffer) layoutBinding(index uint32) vk.DescriptorSetLayoutBinding {
+	return vk.DescriptorSetLayoutBinding{
+		Binding: index, DescriptorType: vk.DescriptorTypeStorageBuffer,
+		DescriptorCount: 1, StageFlags: b.StageFlags,
+	}
+}
+
+func (b *BindingStorageBuffer) poolSize(setCount uint32) vk.DescriptorPoolSize {
+	return vk.DescriptorPoolSize{Type: vk.DescriptorTypeStorageBuffer, DescriptorCount: setCount}
+}
+
+func (b *BindingStorageBuffer) writeSet(set vk.DescriptorSet, index uint32, _ uint32) vk.WriteDescriptorSet {
+	r := b.Range
+	if r == 0 {
+		r = vk.DeviceSize(vk.WholeSize)
+	}
+	return vk.WriteDescriptorSet{
+		SType: vk.StructureTypeWriteDescriptorSet, DstSet: set, DstBinding: index,
+		DescriptorCount: 1, DescriptorType: vk.DescriptorTypeStorageBuffer,
+		PBufferInfo: []vk.DescriptorBufferInfo{{Buffer: b.Buffer, Offset: 0, Range: r}},
+	}
+}
+
+// BindingImageSampler binds a single combined image sampler.
+type BindingImageSampler struct {
+	StageFlags        vk.ShaderStageFlags
+	ImageView         vk.ImageView
+	Sampler           vk.Sampler
+	Layout            vk.ImageLayout // 0 defaults to ShaderReadOnlyOptimal
+	ImmutableSamplers []vk.Sampler
+}
+
+func (b *BindingImageSampler) layoutBinding(index uint32) vk.DescriptorSetLayoutBinding {
+	lb := vk.DescriptorSetLayoutBinding{
+		Binding: index, DescriptorType: vk.DescriptorTypeCombinedImageSampler,
+		DescriptorCount: 1, StageFlags: b.StageFlags,
+	}
+	if len(b.ImmutableSamplers) > 0 {
+		lb.PImmutableSamplers = b.ImmutableSamplers
+	}
+	return lb
+}
+
+func (b *BindingImageSampler) poolSize(setCount uint32) vk.DescriptorPoolSize {
+	return vk.DescriptorPoolSize{Type: vk.DescriptorTypeCombinedImageSampler, DescriptorCount: setCount}
+}
+
+func (b *BindingImageSampler) writeSet(set vk.DescriptorSet, index uint32, _ uint32) vk.WriteDescriptorSet {
+	layout := b.Layout
+	if layout == 0 {
+		layout = vk.ImageLayoutShaderReadOnlyOptimal
+	}
+	return vk.WriteDescriptorSet{
+		SType: vk.StructureTypeWriteDescriptorSet, DstSet: set, DstBinding: index,
+		DescriptorCount: 1, DescriptorType: vk.DescriptorTypeCombinedImageSampler,
+		PImageInfo: []vk.DescriptorImageInfo{{Sampler: b.Sampler, ImageView: b.ImageView, ImageLayout: layout}},
+	}
+}
+
+// BindingImageSamplerArray binds an array of combined image samplers (e.g. texture array for RT).
+type BindingImageSamplerArray struct {
+	StageFlags        vk.ShaderStageFlags
+	ImageInfos        []vk.DescriptorImageInfo
+	ImmutableSamplers []vk.Sampler
+}
+
+func (b *BindingImageSamplerArray) layoutBinding(index uint32) vk.DescriptorSetLayoutBinding {
+	lb := vk.DescriptorSetLayoutBinding{
+		Binding: index, DescriptorType: vk.DescriptorTypeCombinedImageSampler,
+		DescriptorCount: uint32(len(b.ImageInfos)), StageFlags: b.StageFlags,
+	}
+	if len(b.ImmutableSamplers) > 0 {
+		lb.PImmutableSamplers = b.ImmutableSamplers
+	}
+	return lb
+}
+
+func (b *BindingImageSamplerArray) poolSize(setCount uint32) vk.DescriptorPoolSize {
+	return vk.DescriptorPoolSize{
+		Type:            vk.DescriptorTypeCombinedImageSampler,
+		DescriptorCount: setCount * uint32(len(b.ImageInfos)),
+	}
+}
+
+func (b *BindingImageSamplerArray) writeSet(set vk.DescriptorSet, index uint32, _ uint32) vk.WriteDescriptorSet {
+	return vk.WriteDescriptorSet{
+		SType: vk.StructureTypeWriteDescriptorSet, DstSet: set, DstBinding: index,
+		DescriptorCount: uint32(len(b.ImageInfos)), DescriptorType: vk.DescriptorTypeCombinedImageSampler,
+		PImageInfo: b.ImageInfos,
+	}
+}
+
+// NewDescriptorSets creates a descriptor set layout, pool, and sets from a slice of bindings.
+// Binding indices are assigned sequentially (0, 1, 2, ...).
+func NewDescriptorSets(device vk.Device, setCount uint32, bindings []DescriptorBinding) (VulkanDescriptorInfo, error) {
 	var d VulkanDescriptorInfo
 	d.device = device
 
+	// Layout
+	layoutBindings := make([]vk.DescriptorSetLayoutBinding, len(bindings))
+	for i, b := range bindings {
+		layoutBindings[i] = b.layoutBinding(uint32(i))
+	}
 	if err := vk.Error(vk.CreateDescriptorSetLayout(device, &vk.DescriptorSetLayoutCreateInfo{
-		SType: vk.StructureTypeDescriptorSetLayoutCreateInfo, BindingCount: 2,
-		PBindings: []vk.DescriptorSetLayoutBinding{
-			{Binding: 0, DescriptorType: vk.DescriptorTypeUniformBuffer, DescriptorCount: 1,
-				StageFlags: vk.ShaderStageFlags(vk.ShaderStageVertexBit), PImmutableSamplers: []vk.Sampler{vk.NullSampler}},
-			{Binding: 1, DescriptorType: vk.DescriptorTypeCombinedImageSampler, DescriptorCount: 1,
-				StageFlags: vk.ShaderStageFlags(vk.ShaderStageFragmentBit), PImmutableSamplers: []vk.Sampler{texture.GetSampler()}},
-		},
+		SType:        vk.StructureTypeDescriptorSetLayoutCreateInfo,
+		BindingCount: uint32(len(layoutBindings)),
+		PBindings:    layoutBindings,
 	}, nil, &d.layout)); err != nil {
 		return d, fmt.Errorf("vk.CreateDescriptorSetLayout failed with %s", err)
 	}
 
+	// Pool
+	poolSizes := make([]vk.DescriptorPoolSize, len(bindings))
+	for i, b := range bindings {
+		poolSizes[i] = b.poolSize(setCount)
+	}
 	if err := vk.Error(vk.CreateDescriptorPool(device, &vk.DescriptorPoolCreateInfo{
-		SType: vk.StructureTypeDescriptorPoolCreateInfo, MaxSets: count, PoolSizeCount: 2,
-		PPoolSizes: []vk.DescriptorPoolSize{
-			{Type: vk.DescriptorTypeUniformBuffer, DescriptorCount: count},
-			{Type: vk.DescriptorTypeCombinedImageSampler, DescriptorCount: count},
-		},
+		SType:         vk.StructureTypeDescriptorPoolCreateInfo,
+		MaxSets:       setCount,
+		PoolSizeCount: uint32(len(poolSizes)),
+		PPoolSizes:    poolSizes,
 	}, nil, &d.pool)); err != nil {
 		return d, fmt.Errorf("vk.CreateDescriptorPool failed with %s", err)
 	}
 
-	d.sets = make([]vk.DescriptorSet, count)
-	for i := uint32(0); i < count; i++ {
+	// Allocate sets
+	d.sets = make([]vk.DescriptorSet, setCount)
+	for i := uint32(0); i < setCount; i++ {
 		if err := vk.Error(vk.AllocateDescriptorSets(device, &vk.DescriptorSetAllocateInfo{
 			SType: vk.StructureTypeDescriptorSetAllocateInfo, DescriptorPool: d.pool,
 			DescriptorSetCount: 1, PSetLayouts: []vk.DescriptorSetLayout{d.layout},
@@ -115,15 +278,13 @@ func NewDescriptorUBOTexture(device vk.Device, uniforms *VulkanUniformBuffers, t
 		}
 	}
 
-	for i := uint32(0); i < count; i++ {
-		vk.UpdateDescriptorSets(device, 2, []vk.WriteDescriptorSet{
-			{SType: vk.StructureTypeWriteDescriptorSet, DstSet: d.sets[i], DstBinding: 0, DescriptorCount: 1,
-				DescriptorType: vk.DescriptorTypeUniformBuffer,
-				PBufferInfo:    []vk.DescriptorBufferInfo{{Buffer: uniforms.GetBuffer(i), Offset: 0, Range: vk.DeviceSize(uniforms.GetSize())}}},
-			{SType: vk.StructureTypeWriteDescriptorSet, DstSet: d.sets[i], DstBinding: 1, DescriptorCount: 1,
-				DescriptorType: vk.DescriptorTypeCombinedImageSampler,
-				PImageInfo:     []vk.DescriptorImageInfo{{Sampler: texture.GetSampler(), ImageView: texture.GetView(), ImageLayout: vk.ImageLayoutShaderReadOnlyOptimal}}},
-		}, 0, nil)
+	// Write
+	for i := uint32(0); i < setCount; i++ {
+		writes := make([]vk.WriteDescriptorSet, len(bindings))
+		for j, b := range bindings {
+			writes[j] = b.writeSet(d.sets[i], uint32(j), i)
+		}
+		vk.UpdateDescriptorSets(device, uint32(len(writes)), writes, 0, nil)
 	}
 	return d, nil
 }

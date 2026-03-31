@@ -149,8 +149,7 @@ Frees the buffer that stores the shader binding table.
 | [`NewImageDepth`](#newimagedepth)                                   | common        | Creates a depth image with a view.                             |
 | [`TransitionImageLayout`](#transitionimagelayout)                   | common        | Performs a one-time image layout transition.                   |
 | [`NewUniformBuffers`](#newuniformbuffers)                           | common        | Creates a set of uniform buffers.                              |
-| [`NewDescriptorUBO`](#newdescriptorubo)                             | common        | Prepares descriptor sets for a UBO only.                       |
-| [`NewDescriptorUBOTexture`](#newdescriptorubotexture)               | common        | Prepares descriptor sets for a UBO and a texture.              |
+| [`NewDescriptorSets`](#newdescriptorsets)                           | common        | Creates descriptor sets from a declarative binding slice.      |
 | [`NewSyncObjects`](#newsyncobjects)                                 | common        | Creates a fence and semaphore for synchronization.             |
 | [`LoadModel`](#loadmodel)                                           | common        | Loads a glTF/GLB model without textures.                       |
 | [`LoadGLBModel`](#loadglbmodel)                                     | common        | Loads a textured glTF/GLB model.                               |
@@ -238,6 +237,82 @@ Manages a set of uniform buffers of equal size, usually one per frame or per swa
 ### `VulkanDescriptorInfo`
 
 Holds a descriptor set layout, descriptor pool, and already allocated descriptor sets.
+
+**Methods:** `GetLayout()`, `GetSets()`, `Destroy()`.
+
+#### Descriptor Binding System
+
+`NewDescriptorSets` is the general-purpose constructor for `VulkanDescriptorInfo`. It accepts a slice of `DescriptorBinding` interface values and automatically derives the layout, pool sizes, set allocation, and descriptor writes.
+
+```go
+func NewDescriptorSets(device vk.Device, setCount uint32, bindings []DescriptorBinding) (VulkanDescriptorInfo, error)
+```
+
+The `DescriptorBinding` interface is implemented by concrete binding types. Each type holds only the fields relevant to that descriptor kind, providing compile-time safety against misconfigured bindings.
+
+| Binding type | Descriptor type | Key fields |
+|---|---|---|
+| `BindingAccelerationStructure` | AccelerationStructure | `StageFlags`, `AccelerationStructure` |
+| `BindingStorageImage` | StorageImage | `StageFlags`, `ImageView`, `Layout` (default General) |
+| `BindingUniformBuffer` | UniformBuffer | `StageFlags`, `Uniforms` (per-frame buffer selection) |
+| `BindingStorageBuffer` | StorageBuffer | `StageFlags`, `Buffer`, `Range` (default WholeSize) |
+| `BindingImageSampler` | CombinedImageSampler | `StageFlags`, `ImageView`, `Sampler`, `ImmutableSamplers` |
+| `BindingImageSamplerArray` | CombinedImageSampler (array) | `StageFlags`, `ImageInfos`, `ImmutableSamplers` |
+
+Binding indices are assigned sequentially (0, 1, 2, ...) based on the order in the slice.
+
+**Example 1 — Rasterization** (UBO + textured model):
+
+```go
+desc, err := ash.NewDescriptorSets(device, swapchainLen, []ash.DescriptorBinding{
+    &ash.BindingUniformBuffer{
+        StageFlags: vk.ShaderStageFlags(vk.ShaderStageVertexBit),
+        Uniforms:   &uniforms,
+    },
+    &ash.BindingImageSampler{
+        StageFlags:        vk.ShaderStageFlags(vk.ShaderStageFragmentBit),
+        ImageView:         texture.GetView(),
+        Sampler:           texture.GetSampler(),
+        ImmutableSamplers: []vk.Sampler{texture.GetSampler()},
+    },
+})
+```
+
+**Example 2 — Ray tracing** (TLAS + storage image + UBO + fallback texture + geometry SSBO + texture array):
+
+```go
+rayHitStages := vk.ShaderStageFlags(vk.ShaderStageClosestHitBit | vk.ShaderStageAnyHitBit)
+desc, err := ash.NewDescriptorSets(dev, swapchainLen, []ash.DescriptorBinding{
+    &ash.BindingAccelerationStructure{
+        StageFlags:            vk.ShaderStageFlags(vk.ShaderStageRaygenBit | vk.ShaderStageClosestHitBit),
+        AccelerationStructure: tlas.AccelerationStructure,
+    },
+    &ash.BindingStorageImage{
+        StageFlags: vk.ShaderStageFlags(vk.ShaderStageRaygenBit),
+        ImageView:  storageImg.GetView(),
+    },
+    &ash.BindingUniformBuffer{
+        StageFlags: vk.ShaderStageFlags(vk.ShaderStageRaygenBit | vk.ShaderStageClosestHitBit | vk.ShaderStageMissBit),
+        Uniforms:   &uniforms,
+    },
+    &ash.BindingImageSampler{
+        StageFlags:        rayHitStages,
+        ImageView:         fallbackTextureInfo.ImageView,
+        Sampler:           fallbackTextureInfo.Sampler,
+        ImmutableSamplers: []vk.Sampler{fallbackSampler},
+    },
+    &ash.BindingStorageBuffer{
+        StageFlags: rayHitStages,
+        Buffer:     model.GeometryBuffer.Buffer,
+    },
+    &ash.BindingImageSamplerArray{
+        StageFlags:        rayHitStages,
+        ImageInfos:        textureInfos,
+        ImmutableSamplers: immutableSamplers,
+    },
+})
+```
+
 
 <a id="struct-vulkansyncinfo"></a>
 ### `VulkanSyncInfo`
@@ -636,18 +711,6 @@ Returns the allocated descriptor sets. The library helpers already populate them
 `func (d *VulkanDescriptorInfo) Destroy()`
 
 Destroys the descriptor pool and descriptor set layout. The sets themselves are implicitly released together with the pool.
-
-<a id="newdescriptorubo"></a>
-### `NewDescriptorUBO`
-`func NewDescriptorUBO(device vk.Device, uniforms *VulkanUniformBuffers, count uint32) (VulkanDescriptorInfo, error)`
-
-Creates a descriptor layout, pool, and `count` descriptor sets with a single UBO binding at slot 0. The binding is prepared for the vertex shader stage.
-
-<a id="newdescriptorubotexture"></a>
-### `NewDescriptorUBOTexture`
-`func NewDescriptorUBOTexture(device vk.Device, uniforms *VulkanUniformBuffers, texture *VulkanImageResource, count uint32) (VulkanDescriptorInfo, error)`
-
-Like `NewDescriptorUBO`, but also adds a combined image sampler binding at slot 1. The texture binding is intended for the fragment shader.
 
 <a id="newsyncobjects"></a>
 ### `NewSyncObjects`
