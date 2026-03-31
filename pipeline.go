@@ -30,16 +30,16 @@ type PipelineOptions struct {
 	DepthTestEnable bool
 }
 
-type PipelineRasterizationInfo struct {
+type PipelineRasterization struct {
 	device   vk.Device
 	layout   vk.PipelineLayout
 	cache    vk.PipelineCache
 	pipeline vk.Pipeline
 }
 
-// NewGraphicsPipelineWithOptions creates a graphics pipeline with custom shaders and push constants.
-func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass, opts PipelineOptions) (PipelineRasterizationInfo, error) {
-	var gfxPipeline PipelineRasterizationInfo
+// NewPipelineRasterization creates a graphics pipeline with custom shaders and push constants.
+func NewPipelineRasterization(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass, opts PipelineOptions) (PipelineRasterization, error) {
+	var gfxPipeline PipelineRasterization
 
 	// Pipeline layout
 	pipelineLayoutCreateInfo := vk.PipelineLayoutCreateInfo{
@@ -224,15 +224,15 @@ func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, r
 	return gfxPipeline, nil
 }
 
-func (gfx *PipelineRasterizationInfo) GetLayout() vk.PipelineLayout {
+func (gfx *PipelineRasterization) GetLayout() vk.PipelineLayout {
 	return gfx.layout
 }
 
-func (gfx *PipelineRasterizationInfo) GetPipeline() vk.Pipeline {
+func (gfx *PipelineRasterization) GetPipeline() vk.Pipeline {
 	return gfx.pipeline
 }
 
-func (gfx *PipelineRasterizationInfo) Destroy() {
+func (gfx *PipelineRasterization) Destroy() {
 	if gfx == nil {
 		return
 	}

@@ -28,8 +28,9 @@ Public API of the `ash` package. The overview below is split into exported struc
 | [`Mat4x4`](#struct-mat4x4)                                | common        | 4x4 matrix for transforms and projections.                       |
 | [`ArrayFloat32`](#struct-arrayfloat32)                    | common        | Helper alias for a byte view over `[]float32`.                   |
 | [`PipelineOptions`](#struct-pipelineoptions)              | rasterization | Shader, layout, and state configuration for a graphics pipeline. |
-| [`PipelineRasterizationInfo`](#pipelinerasterizationinfo) | rasterization | Handles for the graphics pipeline, layout, and cache.            |
+| [`PipelineRasterization`](#pipelinerasterization)         | rasterization | Handles for the graphics pipeline, layout, and cache.            |
 | [`RasterizationPass`](#struct-rasterizationpass)          | rasterization | Wrapper over a rasterization render pass.                        |
+| [`PipelineRtInfo`](#pipelinertinfo)                       | raytracing    | Holds a ray tracing pipeline and its layout.                     |
 | [`AccelerationStructure`](#accelerationstructure)         | raytracing    | Acceleration structure including its backing buffer.             |
 | [`GLTFPrimitive`](#gltfprimitive)                         | raytracing    | GPU data for one glTF primitive used in RT.                      |
 | [`GLTFModel`](#gltfmodel)                                 | raytracing    | Complete RT model with primitives, textures, and BLAS.           |
@@ -67,10 +68,29 @@ Ends, submits, and synchronously completes a one-time command buffer. After comp
 Frees all preallocated command buffers and then destroys the command pool. It safely handles partially initialized states as well.  
 
 
-<a id="pipelinerasterizationinfo"></a>
-## PipelineRasterizationInfo{}
-
+<a id="pipelinerasterization"></a>
+## PipelineRasterization{}
 Wrapper over the created graphics pipeline, pipeline layout, and pipeline cache.
+
+### `NewPipelineRasterization()`
+Creates a full graphics pipeline including the layout and pipeline cache. Behavior is controlled by `PipelineOptions`, which configure shaders, descriptor set layouts, vertex layout, and depth testing.  
+`func NewPipelineRasterization(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass, opts PipelineOptions) (PipelineRasterization, error)`
+
+### `(*PipelineRasterization).GetLayout`
+Returns the `vk.PipelineLayout` created together with the pipeline.  
+`func (gfx *PipelineRasterization) GetLayout() vk.PipelineLayout`
+
+### `(*PipelineRasterization).GetPipeline`
+Returns the graphics pipeline handle itself.  
+`func (gfx *PipelineRasterization) GetPipeline() vk.Pipeline`
+
+### `(*PipelineRasterization).Destroy`
+Destroys the pipeline, cache, and layout. The caller must ensure the GPU is no longer using them.
+
+
+<a id="pipelinertinfo"></a>
+## PipelineRtInfo{}
+Holds a ray tracing pipeline and its layout.
 
 <a id="struct-accelerationstructure"></a>
 ## AccelerationStructure{}
@@ -147,7 +167,6 @@ Frees the buffer that stores the shader binding table.
 | [`DumpMatrix`](#dumpmatrix)                                         | common        | Writes a matrix into a debug string.                           |
 | [`NewRasterPass`](#newrasterpass)                                   | rasterization | Creates a render pass with one color attachment.               |
 | [`NewRasterPassWithDepth`](#newrasterpasswithdepth)                 | rasterization | Creates a render pass with color and depth attachments.        |
-| [`NewGraphicsPipelineWithOptions`](#newgraphicspipelinewithoptions) | rasterization | Creates a graphics pipeline from the provided options.         |
 | [`RaytracingExtensions`](#raytracingextensions)                     | raytracing    | Returns the list of required RT device extensions.             |
 | [`DecodeGLTFTexture`](#decodegltftexture)                           | raytracing    | Decodes a glTF image into RGBA pixels.                         |
 | [`LoadGLTFTextures`](#loadgltftextures)                             | raytracing    | Uploads glTF textures into Vulkan image resources.             |
@@ -1196,29 +1215,6 @@ Returns the `vk.RenderPass` handle wrapped by the helper type.
 
 Destroys the render pass if it is valid. It is safe to call even on a null or already cleaned-up state.
 
-<a id="newgraphicspipelinewithoptions"></a>
-### `NewGraphicsPipelineWithOptions`
-`func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass, opts PipelineOptions) (PipelineRasterizationInfo, error)`
-
-Creates a full graphics pipeline including the layout and pipeline cache. Behavior is controlled by `PipelineOptions`, which configure shaders, descriptor set layouts, vertex layout, and depth testing.
-
-<a id="pipelinerasterizationinfo-getlayout"></a>
-### `(*PipelineRasterizationInfo).GetLayout`
-`func (gfx *PipelineRasterizationInfo) GetLayout() vk.PipelineLayout`
-
-Returns the `vk.PipelineLayout` created together with the pipeline.
-
-<a id="pipelinerasterizationinfo-getpipeline"></a>
-### `(*PipelineRasterizationInfo).GetPipeline`
-`func (gfx *PipelineRasterizationInfo) GetPipeline() vk.Pipeline`
-
-Returns the graphics pipeline handle itself.
-
-<a id="pipelinerasterizationinfo-destroy"></a>
-### `(*PipelineRasterizationInfo).Destroy`
-`func (gfx *PipelineRasterizationInfo) Destroy()`
-
-Destroys the pipeline, cache, and layout. The caller must ensure the GPU is no longer using them.
 
 ## Raytracing
 
