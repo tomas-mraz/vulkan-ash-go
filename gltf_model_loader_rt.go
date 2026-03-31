@@ -141,7 +141,7 @@ func LoadGLTFModel(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx 
 		return GLTFModel{}, fmt.Errorf("gltf model has no primitives")
 	}
 
-	blasBuf, blas, err := buildGLTFModelBLAS(dev, gpu, queue, cmdCtx, prims)
+	blas, err := buildGLTFModelBLAS(dev, gpu, queue, cmdCtx, prims)
 	if err != nil {
 		destroyGLTFPrimitives(prims)
 		destroyImageResources(textures)
@@ -150,14 +150,13 @@ func LoadGLTFModel(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx 
 
 	geometryBuf, err := createGLTFGeometryNodesBuffer(dev, gpu, prims)
 	if err != nil {
-		vk.DestroyAccelerationStructure(dev, blas, nil)
-		blasBuf.Destroy()
+		blas.Destroy()
 		destroyGLTFPrimitives(prims)
 		destroyImageResources(textures)
 		return GLTFModel{}, err
 	}
 
-	return NewGLTFModel(dev, prims, geometryBuf, blasBuf, blas, textures), nil
+	return NewGLTFModel(dev, prims, geometryBuf, blas, textures), nil
 }
 
 func destroyGLTFPrimitives(prims []GLTFPrimitive) {
@@ -184,7 +183,7 @@ func createGLTFGeometryNodesBuffer(dev vk.Device, gpu vk.PhysicalDevice, prims [
 	return buf, nil
 }
 
-func buildGLTFModelBLAS(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext, prims []GLTFPrimitive) (VulkanBufferResource, vk.AccelerationStructure, error) {
+func buildGLTFModelBLAS(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *VulkanCommandContext, prims []GLTFPrimitive) (VulkanAccelerationStructure, error) {
 	geometries := make([]vk.AccelerationStructureGeometry, 0, len(prims))
 	primitiveCounts := make([]uint32, 0, len(prims))
 	rangeInfos := make([]vk.AccelerationStructureBuildRangeInfo, 0, len(prims))
@@ -197,7 +196,7 @@ func buildGLTFModelBLAS(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cm
 	transformBuf, err := NewBufferHostVisible(dev, gpu, transformMatrices, true,
 		vk.BufferUsageFlags(vk.BufferUsageShaderDeviceAddressBit|vk.BufferUsageAccelerationStructureBuildInputReadOnlyBit))
 	if err != nil {
-		return VulkanBufferResource{}, vk.AccelerationStructure(vk.NullHandle), fmt.Errorf("create transform buffer: %w", err)
+		return VulkanAccelerationStructure{}, fmt.Errorf("create transform buffer: %w", err)
 	}
 	defer transformBuf.Destroy()
 
@@ -247,7 +246,7 @@ func buildGLTFModelBLAS(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cm
 	asBuf, err := NewBufferDeviceLocal(dev, gpu, uint64(sizeInfo.AccelerationStructureSize), true,
 		vk.BufferUsageFlags(vk.BufferUsageAccelerationStructureStorageBit|vk.BufferUsageShaderDeviceAddressBit))
 	if err != nil {
-		return VulkanBufferResource{}, vk.AccelerationStructure(vk.NullHandle), fmt.Errorf("create BLAS buffer: %w", err)
+		return VulkanAccelerationStructure{}, fmt.Errorf("create BLAS buffer: %w", err)
 	}
 
 	var as vk.AccelerationStructure
@@ -258,7 +257,7 @@ func buildGLTFModelBLAS(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cm
 		Type:   vk.AccelerationStructureTypeBottomLevel,
 	}, nil, &as)); err != nil {
 		asBuf.Destroy()
-		return VulkanBufferResource{}, vk.AccelerationStructure(vk.NullHandle), fmt.Errorf("CreateAccelerationStructure (BLAS): %w", err)
+		return VulkanAccelerationStructure{}, fmt.Errorf("CreateAccelerationStructure (BLAS): %w", err)
 	}
 
 	scratchBuf, err := NewBufferDeviceLocal(dev, gpu, uint64(sizeInfo.BuildScratchSize), true,
@@ -266,7 +265,7 @@ func buildGLTFModelBLAS(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cm
 	if err != nil {
 		vk.DestroyAccelerationStructure(dev, as, nil)
 		asBuf.Destroy()
-		return VulkanBufferResource{}, vk.AccelerationStructure(vk.NullHandle), fmt.Errorf("create BLAS scratch buffer: %w", err)
+		return VulkanAccelerationStructure{}, fmt.Errorf("create BLAS scratch buffer: %w", err)
 	}
 	defer scratchBuf.Destroy()
 
@@ -285,16 +284,21 @@ func buildGLTFModelBLAS(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cm
 	if err != nil {
 		vk.DestroyAccelerationStructure(dev, as, nil)
 		asBuf.Destroy()
-		return VulkanBufferResource{}, vk.AccelerationStructure(vk.NullHandle), fmt.Errorf("BeginOneTime: %w", err)
+		return VulkanAccelerationStructure{}, fmt.Errorf("BeginOneTime: %w", err)
 	}
 	vk.CmdBuildAccelerationStructures(cmd, 1, &buildInfo2, [][]vk.AccelerationStructureBuildRangeInfo{rangeInfos})
 	if err := cmdCtx.EndOneTime(queue, cmd); err != nil {
 		vk.DestroyAccelerationStructure(dev, as, nil)
 		asBuf.Destroy()
-		return VulkanBufferResource{}, vk.AccelerationStructure(vk.NullHandle), fmt.Errorf("EndOneTime: %w", err)
+		return VulkanAccelerationStructure{}, fmt.Errorf("EndOneTime: %w", err)
 	}
 
-	return asBuf, as, nil
+	return VulkanAccelerationStructure{
+		device:                dev,
+		AccelerationStructure: as,
+		Buffer:                asBuf,
+		Type:                  vk.AccelerationStructureTypeBottomLevel,
+	}, nil
 }
 
 func identityMat4() [16]float32 {

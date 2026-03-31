@@ -20,17 +20,15 @@ type GLTFModel struct {
 	device         vk.Device
 	Primitives     []GLTFPrimitive
 	GeometryBuffer VulkanBufferResource
-	BLASBuffer     VulkanBufferResource
-	BLAS           vk.AccelerationStructure
+	BLAS           VulkanAccelerationStructure
 	Textures       []VulkanImageResource
 }
 
-func NewGLTFModel(device vk.Device, primitives []GLTFPrimitive, geometryBuffer VulkanBufferResource, blasBuffer VulkanBufferResource, blas vk.AccelerationStructure, textures []VulkanImageResource) GLTFModel {
+func NewGLTFModel(device vk.Device, primitives []GLTFPrimitive, geometryBuffer VulkanBufferResource, blas VulkanAccelerationStructure, textures []VulkanImageResource) GLTFModel {
 	return GLTFModel{
 		device:         device,
 		Primitives:     primitives,
 		GeometryBuffer: geometryBuffer,
-		BLASBuffer:     blasBuffer,
 		BLAS:           blas,
 		Textures:       textures,
 	}
@@ -48,9 +46,5 @@ func (m *GLTFModel) Destroy() {
 		m.Textures[i].Destroy()
 	}
 	m.GeometryBuffer.Destroy()
-	if m.BLAS != vk.AccelerationStructure(vk.NullHandle) {
-		vk.DestroyAccelerationStructure(m.device, m.BLAS, nil)
-		m.BLAS = vk.AccelerationStructure(vk.NullHandle)
-	}
-	m.BLASBuffer.Destroy()
+	m.BLAS.Destroy()
 }
