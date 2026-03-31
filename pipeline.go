@@ -30,7 +30,7 @@ type PipelineOptions struct {
 	DepthTestEnable bool
 }
 
-type VulkanGfxPipelineInfo struct {
+type PipelineRasterizationInfo struct {
 	device   vk.Device
 	layout   vk.PipelineLayout
 	cache    vk.PipelineCache
@@ -38,8 +38,8 @@ type VulkanGfxPipelineInfo struct {
 }
 
 // NewGraphicsPipelineWithOptions creates a graphics pipeline with custom shaders and push constants.
-func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass, opts PipelineOptions) (VulkanGfxPipelineInfo, error) {
-	var gfxPipeline VulkanGfxPipelineInfo
+func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, renderPass vk.RenderPass, opts PipelineOptions) (PipelineRasterizationInfo, error) {
+	var gfxPipeline PipelineRasterizationInfo
 
 	// Pipeline layout
 	pipelineLayoutCreateInfo := vk.PipelineLayoutCreateInfo{
@@ -224,15 +224,15 @@ func NewGraphicsPipelineWithOptions(device vk.Device, displaySize vk.Extent2D, r
 	return gfxPipeline, nil
 }
 
-func (gfx *VulkanGfxPipelineInfo) GetLayout() vk.PipelineLayout {
+func (gfx *PipelineRasterizationInfo) GetLayout() vk.PipelineLayout {
 	return gfx.layout
 }
 
-func (gfx *VulkanGfxPipelineInfo) GetPipeline() vk.Pipeline {
+func (gfx *PipelineRasterizationInfo) GetPipeline() vk.Pipeline {
 	return gfx.pipeline
 }
 
-func (gfx *VulkanGfxPipelineInfo) Destroy() {
+func (gfx *PipelineRasterizationInfo) Destroy() {
 	if gfx == nil {
 		return
 	}
