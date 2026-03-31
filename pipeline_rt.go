@@ -28,17 +28,17 @@ type RTPipelineOptions struct {
 	MaxPipelineRayRecursionDepth uint32 // 0 defaults to 1
 }
 
-// PipelineRtInfo holds a ray tracing pipeline and its layout.
-type PipelineRtInfo struct {
+// PipelineRaytracing holds a ray tracing pipeline and its layout.
+type PipelineRaytracing struct {
 	device   vk.Device
 	layout   vk.PipelineLayout
 	pipeline vk.Pipeline
 }
 
-func (p *PipelineRtInfo) GetLayout() vk.PipelineLayout { return p.layout }
-func (p *PipelineRtInfo) GetPipeline() vk.Pipeline     { return p.pipeline }
+func (p *PipelineRaytracing) GetLayout() vk.PipelineLayout { return p.layout }
+func (p *PipelineRaytracing) GetPipeline() vk.Pipeline     { return p.pipeline }
 
-func (p *PipelineRtInfo) Destroy() {
+func (p *PipelineRaytracing) Destroy() {
 	if p == nil {
 		return
 	}
@@ -48,8 +48,8 @@ func (p *PipelineRtInfo) Destroy() {
 
 // NewRTPipeline creates a ray tracing pipeline from shader group definitions.
 // Shader modules are created internally and destroyed after pipeline creation.
-func NewRTPipeline(device vk.Device, opts RTPipelineOptions) (PipelineRtInfo, error) {
-	var p PipelineRtInfo
+func NewRTPipeline(device vk.Device, opts RTPipelineOptions) (PipelineRaytracing, error) {
+	var p PipelineRaytracing
 	p.device = device
 
 	if len(opts.Groups) == 0 {
