@@ -38,6 +38,100 @@ func NewRaytracingContext(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queu
 	}
 }
 
+// NewBottomLevelAccelerationStructure builds a BLAS from pre-configured geometry slices.
+// The caller is responsible for setting up the geometry and primitive counts;
+// this method handles size queries, buffer allocation, scratch, build, and cleanup.
+func (rt *RaytracingContext) NewBottomLevelAccelerationStructure(
+	geometries []vk.AccelerationStructureGeometry,
+	primitiveCounts []uint32,
+	flags vk.BuildAccelerationStructureFlags,
+) (AccelerationStructure, error) {
+	if rt == nil {
+		return AccelerationStructure{}, fmt.Errorf("raytracing context is nil")
+	}
+	if rt.cmdCtx == nil {
+		return AccelerationStructure{}, fmt.Errorf("raytracing context has nil command context")
+	}
+	if len(geometries) == 0 {
+		return AccelerationStructure{}, fmt.Errorf("blas requires at least one geometry")
+	}
+
+	buildInfo := vk.AccelerationStructureBuildGeometryInfo{
+		SType:         vk.StructureTypeAccelerationStructureBuildGeometryInfo,
+		Type:          vk.AccelerationStructureTypeBottomLevel,
+		Flags:         flags,
+		GeometryCount: uint32(len(geometries)),
+		PGeometries:   geometries,
+	}
+
+	var sizeInfo vk.AccelerationStructureBuildSizesInfo
+	sizeInfo.SType = vk.StructureTypeAccelerationStructureBuildSizesInfo
+	vk.GetAccelerationStructureBuildSizes(rt.device, vk.AccelerationStructureBuildTypeDevice, &buildInfo, &primitiveCounts[0], &sizeInfo)
+	sizeInfo.Deref()
+
+	asBuf, err := NewBufferDeviceLocal(rt.device, rt.gpu, uint64(sizeInfo.AccelerationStructureSize), true,
+		vk.BufferUsageFlags(vk.BufferUsageAccelerationStructureStorageBit|vk.BufferUsageShaderDeviceAddressBit))
+	if err != nil {
+		return AccelerationStructure{}, fmt.Errorf("create BLAS buffer: %w", err)
+	}
+
+	var as vk.AccelerationStructure
+	if err := vk.Error(vk.CreateAccelerationStructure(rt.device, &vk.AccelerationStructureCreateInfo{
+		SType:  vk.StructureTypeAccelerationStructureCreateInfo,
+		Buffer: asBuf.Buffer,
+		Size:   sizeInfo.AccelerationStructureSize,
+		Type:   vk.AccelerationStructureTypeBottomLevel,
+	}, nil, &as)); err != nil {
+		asBuf.Destroy()
+		return AccelerationStructure{}, fmt.Errorf("CreateAccelerationStructure (BLAS): %w", err)
+	}
+
+	scratchBuf, err := NewBufferDeviceLocal(rt.device, rt.gpu, uint64(sizeInfo.BuildScratchSize), true,
+		vk.BufferUsageFlags(vk.BufferUsageStorageBufferBit|vk.BufferUsageShaderDeviceAddressBit))
+	if err != nil {
+		vk.DestroyAccelerationStructure(rt.device, as, nil)
+		asBuf.Destroy()
+		return AccelerationStructure{}, fmt.Errorf("create BLAS scratch buffer: %w", err)
+	}
+	defer scratchBuf.Destroy()
+
+	buildInfo2 := vk.AccelerationStructureBuildGeometryInfo{
+		SType:                    vk.StructureTypeAccelerationStructureBuildGeometryInfo,
+		Type:                     vk.AccelerationStructureTypeBottomLevel,
+		Flags:                    flags,
+		Mode:                     vk.BuildAccelerationStructureModeBuild,
+		DstAccelerationStructure: as,
+		GeometryCount:            uint32(len(geometries)),
+		PGeometries:              geometries,
+	}
+	setDeviceAddressRT(&buildInfo2.ScratchData, scratchBuf.DeviceAddress)
+
+	rangeInfos := make([]vk.AccelerationStructureBuildRangeInfo, len(primitiveCounts))
+	for i, c := range primitiveCounts {
+		rangeInfos[i] = vk.AccelerationStructureBuildRangeInfo{PrimitiveCount: c}
+	}
+
+	cmd, err := rt.cmdCtx.BeginOneTime()
+	if err != nil {
+		vk.DestroyAccelerationStructure(rt.device, as, nil)
+		asBuf.Destroy()
+		return AccelerationStructure{}, fmt.Errorf("BeginOneTime: %w", err)
+	}
+	vk.CmdBuildAccelerationStructures(cmd, 1, &buildInfo2, [][]vk.AccelerationStructureBuildRangeInfo{rangeInfos})
+	if err := rt.cmdCtx.EndOneTime(rt.queue, cmd); err != nil {
+		vk.DestroyAccelerationStructure(rt.device, as, nil)
+		asBuf.Destroy()
+		return AccelerationStructure{}, fmt.Errorf("EndOneTime: %w", err)
+	}
+
+	return AccelerationStructure{
+		device:                rt.device,
+		AccelerationStructure: as,
+		Buffer:                asBuf,
+		Type:                  vk.AccelerationStructureTypeBottomLevel,
+	}, nil
+}
+
 // NewTopLevelAccelerationStructure builds a TLAS from the provided BLAS instances.
 func (rt *RaytracingContext) NewTopLevelAccelerationStructure(instances []TLASInstance, flags vk.BuildAccelerationStructureFlags) (AccelerationStructure, error) {
 	if rt == nil {
