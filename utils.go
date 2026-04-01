@@ -3,6 +3,9 @@ package ash
 import (
 	"bytes"
 	"fmt"
+	"math"
+	"runtime/metrics"
+	"time"
 
 	vk "github.com/tomas-mraz/vulkan"
 )
@@ -93,4 +96,51 @@ func LoadShaderFromBytes(device vk.Device, data []byte) (vk.ShaderModule, error)
 		return module, err
 	}
 	return module, nil
+}
+
+func printGCPauses() {
+	samples := make([]metrics.Sample, 2)
+	samples[0].Name = "/gc/cycles/total:gc-cycles"
+	samples[1].Name = "/sched/pauses/total/gc:seconds"
+
+	metrics.Read(samples)
+
+	cycles := samples[0].Value.Uint64()
+	hist := samples[1].Value.Float64Histogram()
+
+	var totalPauses uint64
+	for i := 0; i < len(hist.Counts); i++ {
+		low := hist.Buckets[i]
+		if !math.IsInf(low, -1) {
+			low = low * 1000000
+		}
+		high := hist.Buckets[i+1]
+		if !math.IsInf(high, 1) {
+			high = high * 1000000
+		}
+		count := hist.Counts[i]
+		if count > 0 {
+			fmt.Printf("GC histogram range [%4.0f - %4.0f µs]: %d×\n", low, high, count)
+		}
+		totalPauses += count
+	}
+	fmt.Printf("GC total cycles: %d pauses: %d\n", cycles, totalPauses)
+}
+
+// StartPrintGCPauses every 10 seconds prints to std output information about GC
+func StartPrintGCPauses(period time.Duration) {
+	if period < 10*time.Second {
+		period = 10 * time.Second
+	}
+	go func() {
+		ticker := time.NewTicker(period)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				printGCPauses()
+			}
+		}
+	}()
 }
