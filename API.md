@@ -4,39 +4,39 @@ Public API of the `ash` package. The overview below is split into exported struc
 
 # Structures
 
-| Structure                                                 | Layer         | Description                                                      |
-|-----------------------------------------------------------|---------------|------------------------------------------------------------------|
-| [`Vulkan`](#struct-vulkan)                                | common        | Main Vulkan context with instance, device, surface, and queue.   |
-| [`DeviceOptions`](#struct-deviceoptions)                  | common        | Options for advanced Vulkan device creation.                     |
-| [`Cleanup`](#struct-cleanup)                              | common        | Simple LIFO registry for cleanup steps.                          |
-| [`CommandContext`](#commandcontext)                       | common        | Command pool and a set of reusable command buffers.              |
-| [`VulkanSwapchainInfo`](#struct-vulkanswapchaininfo)      | common        | Metadata and handles for the swapchain and framebuffers.         |
-| [`VulkanBufferInfo`](#struct-vulkanbufferinfo)            | common        | Simple vertex buffer helper.                                     |
-| [`BufferResourceOptions`](#struct-bufferresourceoptions)  | common        | Configuration for a generic buffer resource.                     |
-| [`VulkanBufferResource`](#struct-vulkanbufferresource)    | common        | Generic representation of a Vulkan buffer and its memory.        |
-| [`VulkanIndexBufferInfo`](#struct-vulkanindexbufferinfo)  | common        | Helper for an index buffer and its index count.                  |
-| [`VulkanImageResource`](#struct-vulkanimageresource)      | common        | Generic image resource with image, view, sampler, and memory.    |
-| [`VulkanUniformBuffers`](#struct-vulkanuniformbuffers)    | common        | Set of uniform buffers, typically one per frame.                 |
-| [`VulkanDescriptorInfo`](#struct-vulkandescriptorinfo)    | common        | Descriptor layout, pool, and allocated sets.                     |
-| [`VulkanSyncInfo`](#struct-vulkansyncinfo)                | common        | Fence and semaphore for synchronization.                         |
-| [`Model`](#struct-model)                                  | common        | Untextured glTF model in an interleaved vertex layout.           |
-| [`TexturedModel`](#struct-texturedmodel)                  | common        | Textured model including an RGBA base color texture.             |
-| [`Vec2`](#struct-vec2)                                    | common        | 2D vector type for math utilities.                               |
-| [`Vec3`](#struct-vec3)                                    | common        | 3D vector type for math utilities.                               |
-| [`Vec4`](#struct-vec4)                                    | common        | 4D vector type for math utilities.                               |
-| [`Quat`](#struct-quat)                                    | common        | Quaternion type for rotations.                                   |
-| [`Mat4x4`](#struct-mat4x4)                                | common        | 4x4 matrix for transforms and projections.                       |
-| [`ArrayFloat32`](#struct-arrayfloat32)                    | common        | Helper alias for a byte view over `[]float32`.                   |
-| [`PipelineOptions`](#struct-pipelineoptions)              | rasterization | Shader, layout, and state configuration for a graphics pipeline. |
-| [`PipelineRasterization`](#pipelinerasterization)         | rasterization | Handles for the graphics pipeline, layout, and cache.            |
-| [`RasterizationPass`](#struct-rasterizationpass)          | rasterization | Wrapper over a rasterization render pass.                        |
-| [`PipelineRaytracing`](#pipelineraytracing)               | raytracing    | Holds a ray tracing pipeline and its layout.                     |
-| [`RaytracingContext`](#raytracingcontext)                 | raytracing    | Orchestration object for RT helpers; it does not own resources.  |
-| [`AccelerationStructure`](#accelerationstructure)         | raytracing    | Acceleration structure including its backing buffer.             |
-| [`TLASInstance`](#tlasinstance)                           | raytracing    | One TLAS instance referencing a BLAS with transform and flags.   |
-| [`GLTFPrimitive`](#gltfprimitive)                         | raytracing    | GPU data for one glTF primitive used in RT.                      |
-| [`GLTFModel`](#gltfmodel)                                 | raytracing    | Complete RT model with primitives, textures, and BLAS.           |
-| [`ShaderBindingTable`](#shaderbindingtable)               | raytracing    | Shader binding table and its address regions.                    |
+| Structure                                                | Type          | Resource      | Description                                                      |
+|----------------------------------------------------------|---------------|---------------|------------------------------------------------------------------|
+| [`Vulkan`](#struct-vulkan)                               | common        | resource      | Main Vulkan context with instance, device, surface, and queue.   |
+| [`DeviceOptions`](#struct-deviceoptions)                 | common        |               | Options for advanced Vulkan device creation.                     |
+| [`Cleanup`](#struct-cleanup)                             | common        |               | Simple LIFO registry for cleanup steps.                          |
+| [`CommandContext`](#commandcontext)                      | common        |               | Command pool and a set of reusable command buffers.              |
+| [`VulkanSwapchainInfo`](#struct-vulkanswapchaininfo)     | common        |               | Metadata and handles for the swapchain and framebuffers.         |
+| [`VulkanBufferInfo`](#struct-vulkanbufferinfo)           | common        |               | Simple vertex buffer helper.                                     |
+| [`BufferResourceOptions`](#struct-bufferresourceoptions) | common        |               | Configuration for a generic buffer resource.                     |
+| [`VulkanBufferResource`](#struct-vulkanbufferresource)   | common        |               | Generic representation of a Vulkan buffer and its memory.        |
+| [`VulkanIndexBufferInfo`](#struct-vulkanindexbufferinfo) | common        |               | Helper for an index buffer and its index count.                  |
+| [`VulkanImageResource`](#struct-vulkanimageresource)     | common        |               | Generic image resource with image, view, sampler, and memory.    |
+| [`VulkanUniformBuffers`](#struct-vulkanuniformbuffers)   | common        | resource      | Set of uniform buffers, typically one per frame.                 |
+| [`VulkanDescriptorInfo`](#struct-vulkandescriptorinfo)   | common        |               | Descriptor layout, pool, and allocated sets.                     |
+| [`VulkanSyncInfo`](#struct-vulkansyncinfo)               | common        |               | Fence and semaphore for synchronization.                         |
+| [`Model`](#struct-model)                                 | common        |               | Untextured glTF model in an interleaved vertex layout.           |
+| [`TexturedModel`](#struct-texturedmodel)                 | common        |               | Textured model including an RGBA base color texture.             |
+| [`Vec2`](#struct-vec2)                                   | common        |               | 2D vector type for math utilities.                               |
+| [`Vec3`](#struct-vec3)                                   | common        |               | 3D vector type for math utilities.                               |
+| [`Vec4`](#struct-vec4)                                   | common        |               | 4D vector type for math utilities.                               |
+| [`Quat`](#struct-quat)                                   | common        |               | Quaternion type for rotations.                                   |
+| [`Mat4x4`](#struct-mat4x4)                               | common        |               | 4x4 matrix for transforms and projections.                       |
+| [`ArrayFloat32`](#struct-arrayfloat32)                   | common        |               | Helper alias for a byte view over `[]float32`.                   |
+| [`PipelineOptions`](#struct-pipelineoptions)             | rasterization |               | Shader, layout, and state configuration for a graphics pipeline. |
+| [`PipelineRasterization`](#pipelinerasterization)        | rasterization |               | Handles for the graphics pipeline, layout, and cache.            |
+| [`RasterizationPass`](#struct-rasterizationpass)         | rasterization |               | Wrapper over a rasterization render pass.                        |
+| [`PipelineRaytracing`](#pipelineraytracing)              | raytracing    | resource      | Holds a ray tracing pipeline and its layout.                     |
+| [`RaytracingContext`](#raytracingcontext)                | raytracing    | orchestration | Orchestration object for RT helpers; it does not own resources.  |
+| [`AccelerationStructure`](#accelerationstructure)        | raytracing    | resource      | Acceleration structure including its backing buffer.             |
+| [`TLASInstance`](#tlasinstance)                          | raytracing    |               | One TLAS instance referencing a BLAS with transform and flags.   |
+| [`GLTFPrimitive`](#gltfprimitive)                        | raytracing    |               | GPU data for one glTF primitive used in RT.                      |
+| [`GLTFModel`](#gltfmodel)                                | raytracing    | resource      | Complete RT model with primitives, textures, and BLAS.           |
+| [`ShaderBindingTable`](#shaderbindingtable)              | raytracing    |               | Shader binding table and its address regions.                    |
 
 # Structures detailed description
 
