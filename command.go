@@ -57,6 +57,21 @@ func (c *CommandContext) GetCmdBuffers() []vk.CommandBuffer {
 	return c.cmdBuffers
 }
 
+// BindRasterPipeline binds a graphics pipeline for subsequent draw commands.
+func (c *CommandContext) BindRasterPipeline(cmd vk.CommandBuffer, pipeline PipelineRasterization) {
+	vk.CmdBindPipeline(cmd, vk.PipelineBindPointGraphics, pipeline.GetPipeline())
+}
+
+// BindVertexBuffers binds vertex buffers starting at the given binding index.
+func (c *CommandContext) BindVertexBuffers(cmd vk.CommandBuffer, firstBinding uint32, buffers []vk.Buffer, offsets []vk.DeviceSize) {
+	vk.CmdBindVertexBuffers(cmd, firstBinding, uint32(len(buffers)), buffers, offsets)
+}
+
+// Draw records a vk.CmdDraw call into the command buffer.
+func (c *CommandContext) Draw(cmd vk.CommandBuffer, vertexCount, instanceCount, firstVertex, firstInstance uint32) {
+	vk.CmdDraw(cmd, vertexCount, instanceCount, firstVertex, firstInstance)
+}
+
 // BeginOneTime allocates and begins a transient primary command buffer.
 func (c *CommandContext) BeginOneTime() (vk.CommandBuffer, error) {
 	cmds := make([]vk.CommandBuffer, 1)

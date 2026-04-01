@@ -56,6 +56,18 @@ Returns the command pool handle managed by the context. Useful when another API 
 Returns the preallocated command buffers. The library does not record or rotate them automatically; that remains the caller's responsibility.  
 `func (c *CommandContext) GetCmdBuffers() []vk.CommandBuffer`
 
+### `(*CommandContext).BindRasterPipeline`
+Binds a graphics pipeline to the command buffer for subsequent rasterization draw calls.  
+`func (c *CommandContext) BindRasterPipeline(cmd vk.CommandBuffer, pipeline PipelineRasterization)`
+
+### `(*CommandContext).BindVertexBuffers`
+Binds vertex buffers starting at the given binding index.  
+`func (c *CommandContext) BindVertexBuffers(cmd vk.CommandBuffer, firstBinding uint32, buffers []vk.Buffer, offsets []vk.DeviceSize)`
+
+### `(*CommandContext).Draw`
+Records `vk.CmdDraw` into the command buffer.  
+`func (c *CommandContext) Draw(cmd vk.CommandBuffer, vertexCount, instanceCount, firstVertex, firstInstance uint32)`
+
 
 ### `(*CommandContext).BeginOneTime`
 Allocates a transient primary command buffer and immediately begins it with `OneTimeSubmit`. Suitable for short uploads and layout transitions.  
@@ -97,6 +109,10 @@ Holds a ray tracing pipeline and its layout.
 <a id="raytracingcontext"></a>
 ## RaytracingContext{}
 Lightweight orchestration object for ray tracing helpers. It groups `device`, `gpu`, `queue`, and `CommandContext`, but does not own or destroy any Vulkan resources.
+
+<a id="swapchaincontext"></a>
+## SwapchainContext{}
+Lightweight orchestration object for swapchain acquire/present flow. It groups `device`, `gpu`, `surface`, `queue`, and a `VulkanSwapchainInfo` pointer, tracks whether the swapchain must be recreated, and offers a single recreate path with a callback for size-dependent resources.
 
 <a id="tlasinstance"></a>
 ## TLASInstance{}
@@ -146,6 +162,7 @@ Frees the buffer that stores the shader binding table.
 | [`LoadShaderFromBytes`](#loadshaderfrombytes)                       | common        | Creates a shader module from raw SPIR-V data.                  |
 | [`NewCommandContext`](#newcommandcontext)                           | common        | Creates a command pool and optional command buffers.           |
 | [`NewSwapchain`](#newswapchain)                                     | common        | Creates a swapchain and selects a surface format.              |
+| [`NewSwapchainContext`](#newswapchaincontext)                       | common        | Creates a swapchain orchestration object around acquire/present. |
 | [`NewBuffer`](#newbuffer)                                           | common        | Creates the default triangle vertex buffer.                    |
 | [`NewBufferWithData`](#newbufferwithdata)                           | common        | Creates a vertex buffer from `[]float32`.                      |
 | [`NewBufferResource`](#newbufferresource)                           | common        | Creates a generic Vulkan buffer resource.                      |
@@ -524,6 +541,84 @@ Creates an image view for each swapchain image and then framebuffers for the giv
 `func (s *Display) Destroy()`
 
 Cleans up framebuffers, image views, swapchains, cached swapchain image handles, and finally destroys the owned `vk.Surface`.
+
+<a id="newswapchaincontext"></a>
+### `NewSwapchainContext`
+`func NewSwapchainContext(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, queue vk.Queue, swapchain *VulkanSwapchainInfo) SwapchainContext`
+
+Creates a lightweight orchestration object for swapchain acquire/present flow. It does not own the pointed `VulkanSwapchainInfo`; instead it centralizes `SUBOPTIMAL` / `OUT_OF_DATE` handling and swapchain recreation.
+
+<a id="swapchaincontext-getswapchain"></a>
+### `(*SwapchainContext).GetSwapchain`
+`func (s *SwapchainContext) GetSwapchain() *VulkanSwapchainInfo`
+
+Returns the attached swapchain resource pointer.
+
+<a id="swapchaincontext-needsrecreate"></a>
+### `(*SwapchainContext).NeedsRecreate`
+`func (s *SwapchainContext) NeedsRecreate() bool`
+
+Reports whether acquire/present observed a `SUBOPTIMAL` or `OUT_OF_DATE` state, or whether recreation was requested explicitly.
+
+<a id="swapchaincontext-requestrecreate"></a>
+### `(*SwapchainContext).RequestRecreate`
+`func (s *SwapchainContext) RequestRecreate()`
+
+Marks the swapchain for recreation. This is the intended hook for window resize events.
+
+<a id="swapchaincontext-acquirenextimage"></a>
+### `(*SwapchainContext).AcquireNextImage`
+`func (s *SwapchainContext) AcquireNextImage(timeout uint64, semaphore vk.Semaphore, fence vk.Fence) (imageIndex uint32, acquired bool, err error)`
+
+Calls `vkAcquireNextImageKHR` and classifies WSI results centrally. `SUBOPTIMAL` still returns an image and sets `NeedsRecreate`; `OUT_OF_DATE` skips acquisition and only sets `NeedsRecreate`.
+
+<a id="swapchaincontext-presentimage"></a>
+### `(*SwapchainContext).PresentImage`
+`func (s *SwapchainContext) PresentImage(imageIndex uint32, waitSemaphores []vk.Semaphore) (presented bool, err error)`
+
+Calls `vkQueuePresentKHR` and classifies WSI results the same way as acquire. `SUBOPTIMAL` presents successfully but requests recreation; `OUT_OF_DATE` requests recreation without presenting.
+
+<a id="swapchaincontext-recreate"></a>
+### `(*SwapchainContext).Recreate`
+`func (s *SwapchainContext) Recreate(windowSize vk.Extent2D, recreateFn SwapchainRecreateFunc) error`
+
+Waits for device idle, destroys the current swapchain, creates a new one, and runs an optional callback to rebuild dependent resources such as depth images or framebuffers. On success it clears the internal recreate flag.
+
+<a id="swapchaincontext-recreaterasterization"></a>
+### `(*SwapchainContext).RecreateRasterization`
+`func (s *SwapchainContext) RecreateRasterization(windowSize vk.Extent2D, rasterPass *RasterizationPass, cmdCtx *CommandContext, pipeline *PipelineRasterization, cfg RasterizationRecreateConfig) error`
+
+Recreates the swapchain together with the standard rasterization resources that depend on it: render pass, framebuffers, command buffers, and graphics pipeline. The old set remains alive until the new one has been created and command buffers have been re-recorded successfully.
+
+<a id="swapchaincontext-acquirenextimagerasterization"></a>
+### `(*SwapchainContext).AcquireNextImageRasterization`
+`func (s *SwapchainContext) AcquireNextImageRasterization(windowSize vk.Extent2D, rasterPass *RasterizationPass, cmdCtx *CommandContext, pipeline *PipelineRasterization, cfg RasterizationRecreateConfig, semaphore vk.Semaphore) (imageIndex uint32, ok bool, err error)`
+
+Acquires the next swapchain image and automatically recreates the swapchain plus common rasterization resources when acquisition reports `OUT_OF_DATE` or when recreation was already pending. If it returns `ok=false`, the application should skip the current frame.
+
+<a id="swapchaincontext-beginrenderpass"></a>
+### `(*SwapchainContext).BeginRenderPass`
+`func (s *SwapchainContext) BeginRenderPass(imageIndex uint32, rasterPass *RasterizationPass, cmdCtx *CommandContext, clearValues []vk.ClearValue) (vk.CommandBuffer, error)`
+
+Resets and begins the command buffer for the given swapchain image, then begins the render pass for that framebuffer.
+
+<a id="swapchaincontext-endrenderpass"></a>
+### `(*SwapchainContext).EndRenderPass`
+`func (s *SwapchainContext) EndRenderPass(cmd vk.CommandBuffer) error`
+
+Ends the render pass and finalizes command buffer recording for the frame.
+
+<a id="swapchaincontext-submitrender"></a>
+### `(*SwapchainContext).SubmitRender`
+`func (s *SwapchainContext) SubmitRender(cmd vk.CommandBuffer, fence vk.Fence, waitSemaphores []vk.Semaphore) error`
+
+Submits the recorded command buffer, waits for the fence to signal completion, and uses the provided semaphores as submit wait semaphores.
+
+<a id="swapchaincontext-presentimagerasterization"></a>
+### `(*SwapchainContext).PresentImageRasterization`
+`func (s *SwapchainContext) PresentImageRasterization(windowSize vk.Extent2D, rasterPass *RasterizationPass, cmdCtx *CommandContext, pipeline *PipelineRasterization, cfg RasterizationRecreateConfig, imageIndex uint32) error`
+
+Presents the rendered image and automatically recreates the swapchain plus common rasterization resources after presentation whenever WSI reports `SUBOPTIMAL` or `OUT_OF_DATE`.
 
 <a id="newbuffer"></a>
 ### `NewBuffer`
