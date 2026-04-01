@@ -23,6 +23,10 @@ type VulkanSwapchainInfo struct {
 }
 
 func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D) (VulkanSwapchainInfo, error) {
+	return newSwapchain(device, gpu, surface, windowSize, vk.NullSwapchain)
+}
+
+func newSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D, oldSwapchain vk.Swapchain) (VulkanSwapchainInfo, error) {
 	//gpu := v.gpuDevices[0]
 
 	// Phase 1: vk.GetPhysicalDeviceSurfaceCapabilities
@@ -89,7 +93,7 @@ func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, w
 		ImageArrayLayers: 1,
 		ImageSharingMode: vk.SharingModeExclusive,
 		PresentMode:      vk.PresentModeFifo,
-		OldSwapchain:     vk.NullSwapchain,
+		OldSwapchain:     oldSwapchain,
 		Clipped:          vk.False,
 	}
 	var swapchain vk.Swapchain
