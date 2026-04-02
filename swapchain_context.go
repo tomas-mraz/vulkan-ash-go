@@ -12,7 +12,7 @@ type SwapchainRecreateFunc func(swap *VulkanSwapchainInfo) error
 
 // SwapchainContext is a lightweight orchestration object for frame presentation.
 // It centralizes Acquire/Present result handling and coordinates swapchain recreation,
-// but it does not own the Vulkan handles stored in VulkanSwapchainInfo.
+// but it does not own the VulkanDevice handles stored in VulkanSwapchainInfo.
 type SwapchainContext struct {
 	device  vk.Device
 	gpu     vk.PhysicalDevice
@@ -60,8 +60,8 @@ func (s *SwapchainContext) RequestRecreate() {
 }
 
 // AcquireNextImage acquires the next swapchain image and classifies WSI warnings centrally.
-// When Vulkan returns SUBOPTIMAL, acquisition still succeeds and NeedsRecreate becomes true.
-// When Vulkan returns OUT_OF_DATE, no image is acquired and NeedsRecreate becomes true.
+// When VulkanDevice returns SUBOPTIMAL, acquisition still succeeds and NeedsRecreate becomes true.
+// When VulkanDevice returns OUT_OF_DATE, no image is acquired and NeedsRecreate becomes true.
 func (s *SwapchainContext) AcquireNextImage(timeout uint64, semaphore vk.Semaphore, fence vk.Fence) (imageIndex uint32, acquired bool, err error) {
 	if s == nil {
 		return 0, false, fmt.Errorf("swapchain context is nil")

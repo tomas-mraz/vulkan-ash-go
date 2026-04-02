@@ -9,7 +9,7 @@ import (
 )
 
 // RaytracingContext is a lightweight orchestration object for ray tracing helpers.
-// It does not own Vulkan resources; it only groups dependencies commonly needed
+// It does not own VulkanDevice resources; it only groups dependencies commonly needed
 // to build acceleration structures and other RT resources.
 type RaytracingContext struct {
 	device vk.Device

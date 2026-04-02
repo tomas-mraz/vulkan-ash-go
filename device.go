@@ -11,7 +11,7 @@ import (
 
 var debug = false
 
-type Vulkan struct {
+type VulkanDevice struct {
 	Device    vk.Device
 	Instance  vk.Instance
 	Surface   vk.Surface
@@ -24,13 +24,13 @@ func SetDebug(state bool) {
 	debug = state
 }
 
-func (v *Vulkan) GetDebugCallback() vk.DebugReportCallback {
+func (v *VulkanDevice) GetDebugCallback() vk.DebugReportCallback {
 	return v.dbg
 }
 
 // Destroy waits for the device to be idle and tears down the device,
 // debug callback, surface, and instance.
-func (v *Vulkan) Destroy() {
+func (v *VulkanDevice) Destroy() {
 	vk.DeviceWaitIdle(v.Device)
 	vk.DestroyDevice(v.Device, nil)
 	if v.dbg != vk.NullDebugReportCallback {
@@ -80,7 +80,7 @@ func CheckDeviceExtensions(gpu vk.PhysicalDevice, required []string) (ok bool, m
 }
 
 // CheckDeviceApiVersion returns true if the physical device supports at least
-// the given Vulkan API version (created via vk.MakeVersion).
+// the given VulkanDevice API version (created via vk.MakeVersion).
 func CheckDeviceApiVersion(gpu vk.PhysicalDevice, minVersion uint32) (ok bool, deviceVersion uint32) {
 	var props vk.PhysicalDeviceProperties
 	vk.GetPhysicalDeviceProperties(gpu, &props)
@@ -140,16 +140,16 @@ type DeviceOptions struct {
 	DeviceExtensions []string
 	PNextChain       unsafe.Pointer // pNext chain for VkDeviceCreateInfo
 	EnabledFeatures  *vk.PhysicalDeviceFeatures
-	ApiVersion       uint32 // Vulkan API version, e.g. vk.MakeVersion(1,2,0). 0 defaults to 1.0.
+	ApiVersion       uint32 // VulkanDevice API version, e.g. vk.MakeVersion(1,2,0). 0 defaults to 1.0.
 }
 
-// NewDevice create the main Vulkan object holding references to all parts of the Vulkan API
-func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc func(instance vk.Instance, window uintptr) (vk.Surface, error), window uintptr) (Vulkan, error) {
+// NewDevice create the main VulkanDevice object holding references to all parts of the VulkanDevice API
+func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc func(instance vk.Instance, window uintptr) (vk.Surface, error), window uintptr) (VulkanDevice, error) {
 	return NewDeviceWithOptions(appName, instanceExtensions, createSurfaceFunc, window, nil)
 }
 
-// NewDeviceWithOptions creates a Vulkan device with custom options for extensions and features.
-func NewDeviceWithOptions(appName string, instanceExtensions []string, createSurfaceFunc func(instance vk.Instance, window uintptr) (vk.Surface, error), window uintptr, opts *DeviceOptions) (Vulkan, error) {
+// NewDeviceWithOptions creates a VulkanDevice device with custom options for extensions and features.
+func NewDeviceWithOptions(appName string, instanceExtensions []string, createSurfaceFunc func(instance vk.Instance, window uintptr) (vk.Surface, error), window uintptr, opts *DeviceOptions) (VulkanDevice, error) {
 
 	apiVersion := vk.MakeVersion(1, 0, 0)
 	if opts != nil && opts.ApiVersion != 0 {
@@ -190,7 +190,7 @@ func NewDeviceWithOptions(appName string, instanceExtensions []string, createSur
 		EnabledLayerCount:       uint32(len(instanceLayers)),
 		PpEnabledLayerNames:     instanceLayers,
 	}
-	vo := Vulkan{}
+	vo := VulkanDevice{}
 	err := vk.Error(vk.CreateInstance(&instanceCreateInfo, nil, &vo.Instance))
 	if err != nil {
 		err = fmt.Errorf("vk.CreateInstance failed with %s", err)
@@ -198,21 +198,21 @@ func NewDeviceWithOptions(appName string, instanceExtensions []string, createSur
 	}
 	err = vk.InitInstance(vo.Instance)
 	if err != nil {
-		return Vulkan{}, err
+		return VulkanDevice{}, err
 	}
 
 	vo.Surface, err = createSurfaceFunc(vo.Instance, window) // Android use a different way to get surface
 	if err != nil {
 		vk.DestroyInstance(vo.Instance, nil)
 		err = fmt.Errorf("create surface failed with %s", err)
-		return Vulkan{}, err
+		return VulkanDevice{}, err
 	}
 	var gpuDevices []vk.PhysicalDevice
 	if gpuDevices, err = getPhysicalDevices(vo.Instance); err != nil {
 		gpuDevices = nil
 		vk.DestroySurface(vo.Instance, vo.Surface, nil)
 		vk.DestroyInstance(vo.Instance, nil)
-		return Vulkan{}, err
+		return VulkanDevice{}, err
 	}
 
 	slog.Debug(fmt.Sprintf("Found %d GPUs", len(gpuDevices)))
@@ -298,4 +298,3 @@ func NewDeviceWithOptions(appName string, instanceExtensions []string, createSur
 	}
 	return vo, nil
 }
-

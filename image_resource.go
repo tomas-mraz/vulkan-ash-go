@@ -7,7 +7,7 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// VulkanImageResource is a generic Vulkan image allocation.
+// VulkanImageResource is a generic VulkanDevice image allocation.
 // It owns the VkImage, its backing VkDeviceMemory, VkImageView, and optional VkSampler.
 type VulkanImageResource struct {
 	device  vk.Device
@@ -23,7 +23,7 @@ func (r *VulkanImageResource) GetView() vk.ImageView  { return r.View }
 func (r *VulkanImageResource) GetSampler() vk.Sampler { return r.Sampler }
 func (r *VulkanImageResource) GetFormat() vk.Format   { return r.Format }
 
-// NewImageResourceFromHandles wraps pre-existing Vulkan handles into a VulkanImageResource.
+// NewImageResourceFromHandles wraps pre-existing VulkanDevice handles into a VulkanImageResource.
 // Use this when image creation is done manually (e.g. staging buffer upload with optimal tiling).
 func NewImageResourceFromHandles(device vk.Device, image vk.Image, memory vk.DeviceMemory, view vk.ImageView, sampler vk.Sampler, format vk.Format) VulkanImageResource {
 	return VulkanImageResource{

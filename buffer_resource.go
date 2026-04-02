@@ -15,7 +15,7 @@ type BufferResourceOptions struct {
 	InitialData         unsafe.Pointer
 }
 
-// VulkanBufferResource is a generic Vulkan buffer allocation.
+// VulkanBufferResource is a generic VulkanDevice buffer allocation.
 // It owns the VkBuffer, its backing VkDeviceMemory, and optional device address metadata.
 type VulkanBufferResource struct {
 	device        vk.Device
