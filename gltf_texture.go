@@ -52,8 +52,8 @@ func DecodeGLTFTexture(doc *gltf.Document, baseDir string, imageIndex int) ([]by
 
 // LoadGLTFTextures loads glTF textures into Device image resources.
 // Index 0 always contains a 1x1 white fallback texture.
-func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, doc *gltf.Document, baseDir string) ([]VulkanImageResource, error) {
-	textures := make([]VulkanImageResource, 0, len(doc.Textures)+1)
+func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, doc *gltf.Document, baseDir string) ([]ImageResource, error) {
+	textures := make([]ImageResource, 0, len(doc.Textures)+1)
 
 	fallback, err := newFallbackGLTFTexture(dev, gpu, queue, cmdCtx)
 	if err != nil {
@@ -89,11 +89,11 @@ func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdC
 	return textures, nil
 }
 
-func newFallbackGLTFTexture(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext) (VulkanImageResource, error) {
+func newFallbackGLTFTexture(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext) (ImageResource, error) {
 	return NewImageTextureWithSampler(dev, gpu, queue, cmdCtx, 1, 1, []byte{255, 255, 255, 255}, defaultGLTFSamplerCreateInfo())
 }
 
-func destroyImageResources(resources []VulkanImageResource) {
+func destroyImageResources(resources []ImageResource) {
 	for i := range resources {
 		resources[i].Destroy()
 	}

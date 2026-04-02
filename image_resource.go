@@ -7,26 +7,23 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// VulkanImageResource is a generic Device image allocation.
+// ImageResource is a generic Device image allocation.
 // It owns the VkImage, its backing VkDeviceMemory, VkImageView, and optional VkSampler.
-type VulkanImageResource struct {
-	device  vk.Device
+type ImageResource struct {
+	device  *Device
 	Image   vk.Image
 	Memory  vk.DeviceMemory
 	View    vk.ImageView
 	Sampler vk.Sampler
 	Format  vk.Format
+	Extent  vk.Extent3D    //TODO
+	Layout  vk.ImageLayout //TODO
 }
 
-func (r *VulkanImageResource) GetImage() vk.Image     { return r.Image }
-func (r *VulkanImageResource) GetView() vk.ImageView  { return r.View }
-func (r *VulkanImageResource) GetSampler() vk.Sampler { return r.Sampler }
-func (r *VulkanImageResource) GetFormat() vk.Format   { return r.Format }
-
-// NewImageResourceFromHandles wraps pre-existing Device handles into a VulkanImageResource.
+// NewImageResourceFromHandles wraps pre-existing Device handles into a ImageResource.
 // Use this when image creation is done manually (e.g. staging buffer upload with optimal tiling).
-func NewImageResourceFromHandles(device vk.Device, image vk.Image, memory vk.DeviceMemory, view vk.ImageView, sampler vk.Sampler, format vk.Format) VulkanImageResource {
-	return VulkanImageResource{
+func NewImageResourceFromHandles(device *Device, image vk.Image, memory vk.DeviceMemory, view vk.ImageView, sampler vk.Sampler, format vk.Format) ImageResource {
+	return ImageResource{
 		device:  device,
 		Image:   image,
 		Memory:  memory,
@@ -36,32 +33,10 @@ func NewImageResourceFromHandles(device vk.Device, image vk.Image, memory vk.Dev
 	}
 }
 
-func (r *VulkanImageResource) Destroy() {
-	if r == nil {
-		return
-	}
-	if r.Sampler != vk.NullSampler {
-		vk.DestroySampler(r.device, r.Sampler, nil)
-		r.Sampler = vk.NullSampler
-	}
-	if r.View != vk.NullImageView {
-		vk.DestroyImageView(r.device, r.View, nil)
-		r.View = vk.NullImageView
-	}
-	if r.Memory != vk.NullDeviceMemory {
-		vk.FreeMemory(r.device, r.Memory, nil)
-		r.Memory = vk.NullDeviceMemory
-	}
-	if r.Image != vk.NullImage {
-		vk.DestroyImage(r.device, r.Image, nil)
-		r.Image = vk.NullImage
-	}
-}
-
 // NewImageTexture creates a texture from RGBA pixel data with a nearest-filter sampler.
 // After creation, call TransitionImageLayout to transition from PreInitialized to ShaderReadOnlyOptimal.
-func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint32, rgbaPixels []byte) (VulkanImageResource, error) {
-	var r VulkanImageResource
+func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint32, rgbaPixels []byte) (ImageResource, error) {
+	var r ImageResource
 	r.device = device
 	r.Format = vk.FormatR8g8b8a8Unorm
 
@@ -82,7 +57,7 @@ func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint
 	}
 
 	var memReq vk.MemoryRequirements
-	vk.GetImageMemoryRequirements(device, r.Image, &memReq)
+	vk.GetImageMemoryRequirements(device.GetDevice(), r.Image, &memReq)
 	memReq.Deref()
 
 	memIdx, _ := vk.FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits,
@@ -142,10 +117,32 @@ func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint
 	return r, nil
 }
 
+func (r *ImageResource) Destroy() {
+	if r == nil {
+		return
+	}
+	if r.Sampler != vk.NullSampler {
+		vk.DestroySampler(r.device, r.Sampler, nil)
+		r.Sampler = vk.NullSampler
+	}
+	if r.View != vk.NullImageView {
+		vk.DestroyImageView(r.device, r.View, nil)
+		r.View = vk.NullImageView
+	}
+	if r.Memory != vk.NullDeviceMemory {
+		vk.FreeMemory(r.device, r.Memory, nil)
+		r.Memory = vk.NullDeviceMemory
+	}
+	if r.Image != vk.NullImage {
+		vk.DestroyImage(r.device, r.Image, nil)
+		r.Image = vk.NullImage
+	}
+}
+
 // NewImageTextureWithSampler uploads RGBA pixels through a staging buffer into an
 // optimal-tiled sampled image and creates a sampler from samplerInfo.
-func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, width, height uint32, rgbaPixels []byte, samplerInfo vk.SamplerCreateInfo) (VulkanImageResource, error) {
-	var r VulkanImageResource
+func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, width, height uint32, rgbaPixels []byte, samplerInfo vk.SamplerCreateInfo) (ImageResource, error) {
+	var r ImageResource
 	r.device = device
 	r.Format = vk.FormatR8g8b8a8Unorm
 
@@ -247,8 +244,8 @@ func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue v
 }
 
 // NewImageStorage creates a device-local storage image and transitions it to General layout.
-func NewImageStorage(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdPool vk.CommandPool, width, height uint32, format vk.Format) (VulkanImageResource, error) {
-	var r VulkanImageResource
+func NewImageStorage(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdPool vk.CommandPool, width, height uint32, format vk.Format) (ImageResource, error) {
+	var r ImageResource
 	r.device = device
 	r.Format = format
 
@@ -306,8 +303,8 @@ func NewImageStorage(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cm
 }
 
 // NewImageDepth creates a depth buffer with the given dimensions and format.
-func NewImageDepth(device vk.Device, gpu vk.PhysicalDevice, width, height uint32, format vk.Format) (VulkanImageResource, error) {
-	var r VulkanImageResource
+func NewImageDepth(device vk.Device, gpu vk.PhysicalDevice, width, height uint32, format vk.Format) (ImageResource, error) {
+	var r ImageResource
 	r.device = device
 	r.Format = format
 
@@ -428,3 +425,8 @@ func TransitionImageLayout(device vk.Device, queue vk.Queue, cmdPool vk.CommandP
 	vk.QueueWaitIdle(queue)
 	vk.FreeCommandBuffers(device, cmdPool, 1, []vk.CommandBuffer{cmd})
 }
+
+func (r *ImageResource) GetImage() vk.Image     { return r.Image }
+func (r *ImageResource) GetView() vk.ImageView  { return r.View }
+func (r *ImageResource) GetSampler() vk.Sampler { return r.Sampler }
+func (r *ImageResource) GetFormat() vk.Format   { return r.Format }
