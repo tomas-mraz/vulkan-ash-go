@@ -12,12 +12,12 @@ import (
 var debug = false
 
 type Device struct {
-	Device   vk.Device
-	Instance vk.Instance
-	//Surface     vk.Surface
-	GpuDevice   vk.PhysicalDevice
-	deviceQueue vk.Queue
-	dbg         vk.DebugReportCallback
+	Device    vk.Device
+	Instance  vk.Instance
+	Surface   vk.Surface
+	GpuDevice vk.PhysicalDevice
+	Queue     vk.Queue
+	dbg       vk.DebugReportCallback
 }
 
 func SetDebug(state bool) {
@@ -272,7 +272,7 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 	vo.Device = device
 	var queue vk.Queue
 	vk.GetDeviceQueue(device, 0, 0, &queue)
-	vo.deviceQueue = queue
+	vo.Queue = queue
 
 	if debug {
 		// Phase 4: vk.CreateDebugReportCallback

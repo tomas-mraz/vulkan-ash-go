@@ -78,6 +78,7 @@ func (b *BindingAccelerationStructure) writeSet(set vk.DescriptorSet, index uint
 // BindingStorageImage binds a storage image (e.g. ray tracing output).
 type BindingStorageImage struct {
 	StageFlags vk.ShaderStageFlags
+	Resource   *ImageResource
 	ImageView  vk.ImageView
 	Layout     vk.ImageLayout // 0 defaults to General
 }
@@ -94,14 +95,19 @@ func (b *BindingStorageImage) poolSize(setCount uint32) vk.DescriptorPoolSize {
 }
 
 func (b *BindingStorageImage) writeSet(set vk.DescriptorSet, index uint32, _ uint32) vk.WriteDescriptorSet {
-	layout := b.Layout
-	if layout == 0 {
-		layout = vk.ImageLayoutGeneral
+	info := vk.DescriptorImageInfo{
+		ImageView:   b.ImageView,
+		ImageLayout: b.Layout,
+	}
+	if b.Resource != nil {
+		info = b.Resource.StorageDescriptorInfo()
+	} else if info.ImageLayout == 0 {
+		info.ImageLayout = vk.ImageLayoutGeneral
 	}
 	return vk.WriteDescriptorSet{
 		SType: vk.StructureTypeWriteDescriptorSet, DstSet: set, DstBinding: index,
 		DescriptorCount: 1, DescriptorType: vk.DescriptorTypeStorageImage,
-		PImageInfo: []vk.DescriptorImageInfo{{ImageView: b.ImageView, ImageLayout: layout}},
+		PImageInfo: []vk.DescriptorImageInfo{info},
 	}
 }
 
@@ -168,6 +174,7 @@ func (b *BindingStorageBuffer) writeSet(set vk.DescriptorSet, index uint32, _ ui
 // BindingImageSampler binds a single combined image sampler.
 type BindingImageSampler struct {
 	StageFlags        vk.ShaderStageFlags
+	Resource          *ImageResource
 	ImageView         vk.ImageView
 	Sampler           vk.Sampler
 	Layout            vk.ImageLayout // 0 defaults to ShaderReadOnlyOptimal
@@ -190,14 +197,20 @@ func (b *BindingImageSampler) poolSize(setCount uint32) vk.DescriptorPoolSize {
 }
 
 func (b *BindingImageSampler) writeSet(set vk.DescriptorSet, index uint32, _ uint32) vk.WriteDescriptorSet {
-	layout := b.Layout
-	if layout == 0 {
-		layout = vk.ImageLayoutShaderReadOnlyOptimal
+	info := vk.DescriptorImageInfo{
+		Sampler:     b.Sampler,
+		ImageView:   b.ImageView,
+		ImageLayout: b.Layout,
+	}
+	if b.Resource != nil {
+		info = b.Resource.SampledDescriptorInfo()
+	} else if info.ImageLayout == 0 {
+		info.ImageLayout = vk.ImageLayoutShaderReadOnlyOptimal
 	}
 	return vk.WriteDescriptorSet{
 		SType: vk.StructureTypeWriteDescriptorSet, DstSet: set, DstBinding: index,
 		DescriptorCount: 1, DescriptorType: vk.DescriptorTypeCombinedImageSampler,
-		PImageInfo: []vk.DescriptorImageInfo{{Sampler: b.Sampler, ImageView: b.ImageView, ImageLayout: layout}},
+		PImageInfo: []vk.DescriptorImageInfo{info},
 	}
 }
 
@@ -206,6 +219,23 @@ type BindingImageSamplerArray struct {
 	StageFlags        vk.ShaderStageFlags
 	ImageInfos        []vk.DescriptorImageInfo
 	ImmutableSamplers []vk.Sampler
+}
+
+// NewBindingStorageImage creates a storage-image descriptor binding from an ImageResource.
+func NewBindingStorageImage(stageFlags vk.ShaderStageFlags, resource *ImageResource) *BindingStorageImage {
+	return &BindingStorageImage{
+		StageFlags: stageFlags,
+		Resource:   resource,
+	}
+}
+
+// NewBindingImageSampler creates a combined-image-sampler descriptor binding from an ImageResource.
+func NewBindingImageSampler(stageFlags vk.ShaderStageFlags, resource *ImageResource, immutableSamplers []vk.Sampler) *BindingImageSampler {
+	return &BindingImageSampler{
+		StageFlags:        stageFlags,
+		Resource:          resource,
+		ImmutableSamplers: immutableSamplers,
+	}
 }
 
 func (b *BindingImageSamplerArray) layoutBinding(index uint32) vk.DescriptorSetLayoutBinding {

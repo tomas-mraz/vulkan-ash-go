@@ -10,19 +10,20 @@ import (
 // ImageResource is a generic Device image allocation.
 // It owns the VkImage, its backing VkDeviceMemory, VkImageView, and optional VkSampler.
 type ImageResource struct {
-	device  *Device
+	device  vk.Device
 	Image   vk.Image
 	Memory  vk.DeviceMemory
 	View    vk.ImageView
 	Sampler vk.Sampler
 	Format  vk.Format
-	Extent  vk.Extent3D    //TODO
-	Layout  vk.ImageLayout //TODO
+	Extent  vk.Extent3D
+	Layout  vk.ImageLayout
 }
 
 // NewImageResourceFromHandles wraps pre-existing Device handles into a ImageResource.
 // Use this when image creation is done manually (e.g. staging buffer upload with optimal tiling).
-func NewImageResourceFromHandles(device *Device, image vk.Image, memory vk.DeviceMemory, view vk.ImageView, sampler vk.Sampler, format vk.Format) ImageResource {
+// Layout defaults to Undefined because the caller owns the synchronization contract.
+func NewImageResourceFromHandles(device vk.Device, image vk.Image, memory vk.DeviceMemory, view vk.ImageView, sampler vk.Sampler, format vk.Format) ImageResource {
 	return ImageResource{
 		device:  device,
 		Image:   image,
@@ -30,6 +31,7 @@ func NewImageResourceFromHandles(device *Device, image vk.Image, memory vk.Devic
 		View:    view,
 		Sampler: sampler,
 		Format:  format,
+		Layout:  vk.ImageLayoutUndefined,
 	}
 }
 
@@ -39,12 +41,14 @@ func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint
 	var r ImageResource
 	r.device = device
 	r.Format = vk.FormatR8g8b8a8Unorm
+	r.Extent = vk.Extent3D{Width: width, Height: height, Depth: 1}
+	r.Layout = vk.ImageLayoutPreinitialized
 
 	err := vk.Error(vk.CreateImage(device, &vk.ImageCreateInfo{
 		SType:         vk.StructureTypeImageCreateInfo,
 		ImageType:     vk.ImageType2d,
 		Format:        r.Format,
-		Extent:        vk.Extent3D{Width: width, Height: height, Depth: 1},
+		Extent:        r.Extent,
 		MipLevels:     1,
 		ArrayLayers:   1,
 		Samples:       vk.SampleCount1Bit,
@@ -57,7 +61,7 @@ func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint
 	}
 
 	var memReq vk.MemoryRequirements
-	vk.GetImageMemoryRequirements(device.GetDevice(), r.Image, &memReq)
+	vk.GetImageMemoryRequirements(device, r.Image, &memReq)
 	memReq.Deref()
 
 	memIdx, _ := vk.FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits,
@@ -145,6 +149,8 @@ func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue v
 	var r ImageResource
 	r.device = device
 	r.Format = vk.FormatR8g8b8a8Unorm
+	r.Extent = vk.Extent3D{Width: width, Height: height, Depth: 1}
+	r.Layout = vk.ImageLayoutUndefined
 
 	stagingBuf, err := NewBufferHostVisible(device, gpu, rgbaPixels, true, vk.BufferUsageFlags(vk.BufferUsageTransferSrcBit))
 	if err != nil {
@@ -156,7 +162,7 @@ func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue v
 		SType:       vk.StructureTypeImageCreateInfo,
 		ImageType:   vk.ImageType2d,
 		Format:      r.Format,
-		Extent:      vk.Extent3D{Width: width, Height: height, Depth: 1},
+		Extent:      r.Extent,
 		MipLevels:   1,
 		ArrayLayers: 1,
 		Samples:     vk.SampleCount1Bit,
@@ -206,7 +212,7 @@ func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue v
 		}})
 	vk.CmdCopyBufferToImage(cmd, stagingBuf.Buffer, r.Image, vk.ImageLayoutTransferDstOptimal, 1, []vk.BufferImageCopy{{
 		ImageSubresource: vk.ImageSubresourceLayers{AspectMask: vk.ImageAspectFlags(vk.ImageAspectColorBit), LayerCount: 1},
-		ImageExtent:      vk.Extent3D{Width: width, Height: height, Depth: 1},
+		ImageExtent:      r.Extent,
 	}})
 	vk.CmdPipelineBarrier(cmd,
 		vk.PipelineStageFlags(vk.PipelineStageTransferBit), vk.PipelineStageFlags(vk.PipelineStageFragmentShaderBit|vk.PipelineStageRayTracingShaderBit),
@@ -221,6 +227,7 @@ func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue v
 		r.Destroy()
 		return r, fmt.Errorf("EndOneTime: %w", err)
 	}
+	r.Layout = vk.ImageLayoutShaderReadOnlyOptimal
 
 	err = vk.Error(vk.CreateImageView(device, &vk.ImageViewCreateInfo{
 		SType:            vk.StructureTypeImageViewCreateInfo,
@@ -248,12 +255,14 @@ func NewImageStorage(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cm
 	var r ImageResource
 	r.device = device
 	r.Format = format
+	r.Extent = vk.Extent3D{Width: width, Height: height, Depth: 1}
+	r.Layout = vk.ImageLayoutUndefined
 
 	err := vk.Error(vk.CreateImage(device, &vk.ImageCreateInfo{
 		SType:       vk.StructureTypeImageCreateInfo,
 		ImageType:   vk.ImageType2d,
 		Format:      format,
-		Extent:      vk.Extent3D{Width: width, Height: height, Depth: 1},
+		Extent:      r.Extent,
 		MipLevels:   1,
 		ArrayLayers: 1,
 		Samples:     vk.SampleCount1Bit,
@@ -298,6 +307,7 @@ func NewImageStorage(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cm
 	}
 
 	TransitionImageLayout(device, queue, cmdPool, r.Image, vk.ImageLayoutUndefined, vk.ImageLayoutGeneral)
+	r.Layout = vk.ImageLayoutGeneral
 
 	return r, nil
 }
@@ -307,12 +317,14 @@ func NewImageDepth(device vk.Device, gpu vk.PhysicalDevice, width, height uint32
 	var r ImageResource
 	r.device = device
 	r.Format = format
+	r.Extent = vk.Extent3D{Width: width, Height: height, Depth: 1}
+	r.Layout = vk.ImageLayoutUndefined
 
 	err := vk.Error(vk.CreateImage(device, &vk.ImageCreateInfo{
 		SType:       vk.StructureTypeImageCreateInfo,
 		ImageType:   vk.ImageType2d,
 		Format:      format,
-		Extent:      vk.Extent3D{Width: width, Height: height, Depth: 1},
+		Extent:      r.Extent,
 		MipLevels:   1,
 		ArrayLayers: 1,
 		Samples:     vk.SampleCount1Bit,
@@ -426,7 +438,46 @@ func TransitionImageLayout(device vk.Device, queue vk.Queue, cmdPool vk.CommandP
 	vk.FreeCommandBuffers(device, cmdPool, 1, []vk.CommandBuffer{cmd})
 }
 
+// TransitionLayout updates the resource to the requested layout using the stored current state.
+func (r *ImageResource) TransitionLayout(queue vk.Queue, cmdPool vk.CommandPool, newLayout vk.ImageLayout) {
+	if r == nil || r.Image == vk.NullImage || r.Layout == newLayout {
+		return
+	}
+	TransitionImageLayout(r.device, queue, cmdPool, r.Image, r.Layout, newLayout)
+	r.Layout = newLayout
+}
+
+// SampledDescriptorInfo returns descriptor info for sampled image bindings.
+func (r *ImageResource) SampledDescriptorInfo() vk.DescriptorImageInfo {
+	if r == nil {
+		return vk.DescriptorImageInfo{}
+	}
+	return vk.DescriptorImageInfo{
+		Sampler:     r.Sampler,
+		ImageView:   r.View,
+		ImageLayout: r.Layout,
+	}
+}
+
+// StorageDescriptorInfo returns descriptor info for storage image bindings.
+func (r *ImageResource) StorageDescriptorInfo() vk.DescriptorImageInfo {
+	if r == nil {
+		return vk.DescriptorImageInfo{}
+	}
+	return vk.DescriptorImageInfo{
+		ImageView:   r.View,
+		ImageLayout: r.Layout,
+	}
+}
+
 func (r *ImageResource) GetImage() vk.Image     { return r.Image }
 func (r *ImageResource) GetView() vk.ImageView  { return r.View }
 func (r *ImageResource) GetSampler() vk.Sampler { return r.Sampler }
 func (r *ImageResource) GetFormat() vk.Format   { return r.Format }
+func (r *ImageResource) GetExtent() vk.Extent3D { return r.Extent }
+func (r *ImageResource) GetLayout() vk.ImageLayout {
+	if r == nil {
+		return vk.ImageLayoutUndefined
+	}
+	return r.Layout
+}
