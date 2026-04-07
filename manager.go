@@ -122,7 +122,7 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 		aaa.Free()
 	}
 
-	manager.Gpu = gpuDevices[0] //FIXME select GPU device
+	manager.Gpu = selectPhysicalDevice(gpuDevices)
 	existingExtensions = GetDeviceExtensions(manager.Gpu)
 	slog.Debug(fmt.Sprintf("Device extensions: %v", existingExtensions))
 
@@ -157,7 +157,7 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 		deviceCreateInfo.PEnabledFeatures = []vk.PhysicalDeviceFeatures{*opts.EnabledFeatures}
 	}
 
-	// we choose the first GPU available for this device
+	// create the logical device for the selected physical device
 	err = vk.Error(vk.CreateDevice(manager.Gpu, &deviceCreateInfo, nil, &manager.Device))
 	if err != nil {
 		gpuDevices = nil
@@ -286,6 +286,59 @@ func getPhysicalDevices(instance vk.Instance) ([]vk.PhysicalDevice, error) {
 		return nil, err
 	}
 	return gpuList, nil
+}
+
+func selectPhysicalDevice(gpus []vk.PhysicalDevice) vk.PhysicalDevice {
+	bestGPU := gpus[0]
+	bestName := ""
+	bestType := vk.PhysicalDeviceTypeOther
+	bestScore := 0
+
+	gpuTypes := []string{"Other", "Integrated GPU", "Discrete GPU", "Virtual GPU", "CPU"}
+
+	var name string
+	var gpuType vk.PhysicalDeviceType
+	var score int
+	// Vulkan put better gpu on the beginning of the list => same score does not win
+	for i, gpu := range gpus {
+		var props vk.PhysicalDeviceProperties
+		vk.GetPhysicalDeviceProperties(gpu, &props)
+		props.Deref()
+
+		name = vk.ToString(props.DeviceName[:])
+		gpuType = props.DeviceType
+		score = 0
+
+		switch props.ApiVersion {
+		case vk.ApiVersion13:
+			score += 300
+		case vk.ApiVersion12:
+			score += 200
+		case vk.ApiVersion11:
+			score += 100
+		}
+		if i == 0 {
+			score += 100 // selected by vulkan as best
+		}
+		if gpuType == vk.PhysicalDeviceTypeDiscreteGpu {
+			score += 100 // more powerful
+		}
+		if runtime.GOOS == MACOS && strings.Contains(strings.ToLower(name), "kosmickrisp") {
+			score += 500 // preferred before MoltenVK
+		}
+		fmt.Printf("Listed GPU: %s (type=%s, score=%d)\n", name, gpuTypes[gpuType], score)
+
+		if score > bestScore {
+			bestGPU = gpu
+			bestName = name
+			bestType = gpuType
+			bestScore = score
+		}
+		props.Free()
+	}
+
+	fmt.Printf("Selected GPU: %s (type=%s, score=%d)\n", bestName, gpuTypes[bestType], bestScore)
+	return bestGPU
 }
 
 func dbgCallbackFunc(flags vk.DebugReportFlags, objectType vk.DebugReportObjectType, object uint64, location uint64, messageCode int32, pLayerPrefix string, pMessage string, pUserData unsafe.Pointer) vk.Bool32 {
