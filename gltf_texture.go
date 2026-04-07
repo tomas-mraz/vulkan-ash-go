@@ -50,7 +50,7 @@ func DecodeGLTFTexture(doc *gltf.Document, baseDir string, imageIndex int) ([]by
 	return rgba.Pix, uint32(bounds.Dx()), uint32(bounds.Dy()), nil
 }
 
-// LoadGLTFTextures loads glTF textures into Device image resources.
+// LoadGLTFTextures loads glTF textures into Manager image resources.
 // Index 0 always contains a 1x1 white fallback texture.
 func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, doc *gltf.Document, baseDir string) ([]ImageResource, error) {
 	textures := make([]ImageResource, 0, len(doc.Textures)+1)

@@ -15,7 +15,7 @@ type BufferResourceOptions struct {
 	InitialData         unsafe.Pointer
 }
 
-// VulkanBufferResource is a generic Device buffer allocation.
+// VulkanBufferResource is a generic Manager buffer allocation.
 // It owns the VkBuffer, its backing VkDeviceMemory, and optional device address metadata.
 type VulkanBufferResource struct {
 	device        vk.Device
@@ -128,7 +128,7 @@ func NewBufferHostVisible[T any](device vk.Device, gpu vk.PhysicalDevice, data [
 }
 
 // NewBufferDeviceLocal creates a device-local buffer.
-// Device-local memory cannot be written from CPU, so size is specified in bytes directly.
+// Manager-local memory cannot be written from CPU, so size is specified in bytes directly.
 func NewBufferDeviceLocal(device vk.Device, gpu vk.PhysicalDevice, size uint64, enableDeviceAddress bool, usage vk.BufferUsageFlags) (VulkanBufferResource, error) {
 	return NewBufferResource(device, gpu, size, BufferResourceOptions{
 		Usage:               usage,

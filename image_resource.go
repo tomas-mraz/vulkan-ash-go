@@ -7,7 +7,7 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// ImageResource is a generic Device image allocation.
+// ImageResource is a generic Manager image allocation.
 // It owns the VkImage, its backing VkDeviceMemory, VkImageView, and optional VkSampler.
 type ImageResource struct {
 	device  vk.Device
@@ -20,7 +20,7 @@ type ImageResource struct {
 	Layout  vk.ImageLayout
 }
 
-// NewImageResourceFromHandles wraps pre-existing Device handles into a ImageResource.
+// NewImageResourceFromHandles wraps pre-existing Manager handles into a ImageResource.
 // Use this when image creation is done manually (e.g. staging buffer upload with optimal tiling).
 // Layout defaults to Undefined because the caller owns the synchronization contract.
 func NewImageResourceFromHandles(device vk.Device, image vk.Image, memory vk.DeviceMemory, view vk.ImageView, sampler vk.Sampler, format vk.Format) ImageResource {

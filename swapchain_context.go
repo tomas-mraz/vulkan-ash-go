@@ -12,24 +12,17 @@ type SwapchainRecreateFunc func(swap *VulkanSwapchainInfo) error
 
 // SwapchainContext is a lightweight orchestration object for frame presentation.
 // It centralizes Acquire/Present result handling and coordinates swapchain recreation,
-// but it does not own the Device handles stored in VulkanSwapchainInfo.
+// but it does not own the Manager or VulkanSwapchainInfo it references.
 type SwapchainContext struct {
-	device  vk.Device
-	gpu     vk.PhysicalDevice
-	surface vk.Surface
-	queue   vk.Queue
-
+	manager       *Manager
 	swapchain     *VulkanSwapchainInfo
 	needsRecreate bool
 }
 
 // NewSwapchainContext groups the common swapchain dependencies without taking ownership.
-func NewSwapchainContext(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, queue vk.Queue, swapchain *VulkanSwapchainInfo) SwapchainContext {
+func NewSwapchainContext(manager *Manager, swapchain *VulkanSwapchainInfo) SwapchainContext {
 	return SwapchainContext{
-		device:    device,
-		gpu:       gpu,
-		surface:   surface,
-		queue:     queue,
+		manager:   manager,
 		swapchain: swapchain,
 	}
 }
@@ -60,8 +53,8 @@ func (s *SwapchainContext) RequestRecreate() {
 }
 
 // AcquireNextImage acquires the next swapchain image and classifies WSI warnings centrally.
-// When Device returns SUBOPTIMAL, acquisition still succeeds and NeedsRecreate becomes true.
-// When Device returns OUT_OF_DATE, no image is acquired and NeedsRecreate becomes true.
+// When Manager returns SUBOPTIMAL, acquisition still succeeds and NeedsRecreate becomes true.
+// When Manager returns OUT_OF_DATE, no image is acquired and NeedsRecreate becomes true.
 func (s *SwapchainContext) AcquireNextImage(timeout uint64, semaphore vk.Semaphore, fence vk.Fence) (imageIndex uint32, acquired bool, err error) {
 	if s == nil {
 		return 0, false, fmt.Errorf("swapchain context is nil")
@@ -73,7 +66,7 @@ func (s *SwapchainContext) AcquireNextImage(timeout uint64, semaphore vk.Semapho
 		return 0, false, fmt.Errorf("swapchain context has no swapchain handles")
 	}
 
-	result := vk.AcquireNextImage(s.device, s.swapchain.DefaultSwapchain(), timeout, semaphore, fence, &imageIndex)
+	result := vk.AcquireNextImage(s.manager.Device, s.swapchain.DefaultSwapchain(), timeout, semaphore, fence, &imageIndex)
 	acquired, recreate, err := classifySwapchainResult(result)
 	if recreate {
 		s.needsRecreate = true
@@ -106,7 +99,7 @@ func (s *SwapchainContext) PresentImage(imageIndex uint32, waitSemaphores []vk.S
 		PSwapchains:        []vk.Swapchain{s.swapchain.DefaultSwapchain()},
 		PImageIndices:      []uint32{imageIndex},
 	}
-	result := vk.QueuePresent(s.queue, &presentInfo)
+	result := vk.QueuePresent(s.manager.Queue, &presentInfo)
 	presented, recreate, err := classifySwapchainResult(result)
 	if recreate {
 		s.needsRecreate = true
@@ -130,13 +123,13 @@ func (s *SwapchainContext) Recreate(windowSize vk.Extent2D, recreateFn Swapchain
 		return fmt.Errorf("swapchain context has no swapchain handles")
 	}
 
-	if err := vk.Error(vk.DeviceWaitIdle(s.device)); err != nil {
+	if err := vk.Error(vk.DeviceWaitIdle(s.manager.Device)); err != nil {
 		return fmt.Errorf("vk.DeviceWaitIdle failed with %w", err)
 	}
 
 	oldSwap := *s.swapchain
 
-	swap, err := newSwapchain(s.device, s.gpu, s.surface, windowSize, oldSwap.DefaultSwapchain())
+	swap, err := newSwapchain(s.manager.Device, s.manager.GpuDevice, s.manager.Surface, windowSize, oldSwap.DefaultSwapchain())
 	if err != nil {
 		return err
 	}

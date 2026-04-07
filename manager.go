@@ -11,7 +11,7 @@ import (
 
 var debug = false
 
-type Device struct {
+type Manager struct {
 	Device    vk.Device
 	Instance  vk.Instance
 	Surface   vk.Surface
@@ -20,8 +20,21 @@ type Device struct {
 	dbg       vk.DebugReportCallback
 }
 
-// NewDevice creates a Device device with custom options for extensions and features.
-func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc func(instance vk.Instance, window uintptr) (vk.Surface, error), window uintptr, opts *DeviceOptions) (Device, error) {
+// DeviceOptions configures device creation for NewDeviceWithOptions.
+type DeviceOptions struct {
+	DeviceExtensions []string
+	PNextChain       unsafe.Pointer // pNext chain for VkDeviceCreateInfo
+	EnabledFeatures  *vk.PhysicalDeviceFeatures
+	ApiVersion       uint32 // Manager API version, e.g. vk.MakeVersion(1,2,0). 0 defaults to 1.0.
+}
+
+// CreateSurfaceFunc creates a VkSurface from a Vulkan instance.
+// On desktop (GLFW) this typically calls window.CreateWindowSurface;
+// on Android it receives the native window pointer.
+type CreateSurfaceFunc func(instance vk.Instance) (vk.Surface, error)
+
+// NewManager creates a Manager device with custom options for extensions and features.
+func NewManager(appName string, instanceExtensions []string, createSurfaceFn CreateSurfaceFunc, opts *DeviceOptions) (Manager, error) {
 
 	apiVersion := vk.MakeVersion(1, 0, 0)
 	if opts != nil && opts.ApiVersion != 0 {
@@ -62,29 +75,33 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		EnabledLayerCount:       uint32(len(instanceLayers)),
 		PpEnabledLayerNames:     instanceLayers,
 	}
-	vo := Device{}
-	err := vk.Error(vk.CreateInstance(&instanceCreateInfo, nil, &vo.Instance))
+	manager := Manager{}
+	err := vk.Error(vk.CreateInstance(&instanceCreateInfo, nil, &manager.Instance))
 	if err != nil {
 		err = fmt.Errorf("vk.CreateInstance failed with %s", err)
-		return vo, err
+		return manager, err
 	}
-	err = vk.InitInstance(vo.Instance)
+	err = vk.InitInstance(manager.Instance)
 	if err != nil {
-		return Device{}, err
+		return Manager{}, err
 	}
 
-	vo.Surface, err = createSurfaceFunc(vo.Instance, window) // Android use a different way to get surface
-	if err != nil {
-		vk.DestroyInstance(vo.Instance, nil)
-		err = fmt.Errorf("create surface failed with %s", err)
-		return Device{}, err
+	if createSurfaceFn != nil {
+		manager.Surface, err = createSurfaceFn(manager.Instance)
+		if err != nil {
+			return Manager{}, err
+		}
+		if err != nil {
+			vk.DestroyInstance(manager.Instance, nil)
+			return Manager{}, fmt.Errorf("create surface failed with %s", err)
+		}
 	}
 	var gpuDevices []vk.PhysicalDevice
-	if gpuDevices, err = getPhysicalDevices(vo.Instance); err != nil {
+	if gpuDevices, err = getPhysicalDevices(manager.Instance); err != nil {
 		gpuDevices = nil
-		vk.DestroySurface(vo.Instance, vo.Surface, nil)
-		vk.DestroyInstance(vo.Instance, nil)
-		return Device{}, err
+		vk.DestroySurface(manager.Instance, manager.Surface, nil)
+		vk.DestroyInstance(manager.Instance, nil)
+		return Manager{}, err
 	}
 
 	slog.Debug(fmt.Sprintf("Found %d GPUs", len(gpuDevices)))
@@ -96,8 +113,8 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		aaa.Free()
 	}
 
-	vo.GpuDevice = gpuDevices[0] //FIXME select GPU device
-	existingExtensions = GetDeviceExtensions(vo.GpuDevice)
+	manager.GpuDevice = gpuDevices[0] //FIXME select GPU device
+	existingExtensions = GetDeviceExtensions(manager.GpuDevice)
 	slog.Debug(fmt.Sprintf("Device extensions: %v", existingExtensions))
 
 	// Phase 3: vk.CreateDevice with vk.DeviceCreateInfo (a logical device)
@@ -114,7 +131,7 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		PQueuePriorities: []float32{1.0},
 	}}
 	var deviceExtensions []string
-	if vo.Surface != vk.NullSurface {
+	if manager.Surface != vk.NullSurface {
 		deviceExtensions = append(deviceExtensions, "VK_KHR_swapchain\x00")
 	}
 	if opts != nil {
@@ -138,18 +155,18 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		deviceCreateInfo.PEnabledFeatures = []vk.PhysicalDeviceFeatures{*opts.EnabledFeatures}
 	}
 	var device vk.Device // we choose the first GPU available for this device
-	err = vk.Error(vk.CreateDevice(vo.GpuDevice, &deviceCreateInfo, nil, &device))
+	err = vk.Error(vk.CreateDevice(manager.GpuDevice, &deviceCreateInfo, nil, &device))
 	if err != nil {
 		gpuDevices = nil
-		vk.DestroySurface(vo.Instance, vo.Surface, nil)
-		vk.DestroyInstance(vo.Instance, nil)
+		vk.DestroySurface(manager.Instance, manager.Surface, nil)
+		vk.DestroyInstance(manager.Instance, nil)
 		err = fmt.Errorf("vk.CreateDevice failed with %s", err)
-		return vo, err
+		return manager, err
 	}
-	vo.Device = device
+	manager.Device = device
 	var queue vk.Queue
 	vk.GetDeviceQueue(device, 0, 0, &queue)
-	vo.Queue = queue
+	manager.Queue = queue
 
 	if debug {
 		// Phase 4: vk.CreateDebugReportCallback
@@ -160,28 +177,28 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 			PfnCallback: dbgCallbackFunc,
 		}
 		var dbg vk.DebugReportCallback
-		err = vk.Error(vk.CreateDebugReportCallback(vo.Instance, &dbgCreateInfo, nil, &dbg))
+		err = vk.Error(vk.CreateDebugReportCallback(manager.Instance, &dbgCreateInfo, nil, &dbg))
 		if err != nil {
 			err = fmt.Errorf("vk.CreateDebugReportCallback failed with %s", err)
 			slog.Warn(err.Error())
-			return vo, nil
+			return manager, nil
 		}
-		vo.dbg = dbg
+		manager.dbg = dbg
 	}
-	return vo, nil
+	return manager, nil
 }
 
 func SetDebug(state bool) {
 	debug = state
 }
 
-func (v *Device) GetDebugCallback() vk.DebugReportCallback {
+func (v *Manager) GetDebugCallback() vk.DebugReportCallback {
 	return v.dbg
 }
 
 // Destroy waits for the device to be idle and tears down the device,
 // debug callback, surface, and instance.
-func (v *Device) Destroy() {
+func (v *Manager) Destroy() {
 	vk.DeviceWaitIdle(v.Device)
 	vk.DestroyDevice(v.Device, nil)
 	if v.dbg != vk.NullDebugReportCallback {
@@ -231,7 +248,7 @@ func CheckDeviceExtensions(gpu vk.PhysicalDevice, required []string) (ok bool, m
 }
 
 // CheckDeviceApiVersion returns true if the physical device supports at least
-// the given Device API version (created via vk.MakeVersion).
+// the given Manager API version (created via vk.MakeVersion).
 func CheckDeviceApiVersion(gpu vk.PhysicalDevice, minVersion uint32) (ok bool, deviceVersion uint32) {
 	var props vk.PhysicalDeviceProperties
 	vk.GetPhysicalDeviceProperties(gpu, &props)
@@ -284,12 +301,4 @@ func dbgCallbackFunc(flags vk.DebugReportFlags, objectType vk.DebugReportObjectT
 		slog.Warn(fmt.Sprintf("unknown debug message %d (layer %s)", messageCode, pLayerPrefix))
 	}
 	return vk.False
-}
-
-// DeviceOptions configures device creation for NewDeviceWithOptions.
-type DeviceOptions struct {
-	DeviceExtensions []string
-	PNextChain       unsafe.Pointer // pNext chain for VkDeviceCreateInfo
-	EnabledFeatures  *vk.PhysicalDeviceFeatures
-	ApiVersion       uint32 // Device API version, e.g. vk.MakeVersion(1,2,0). 0 defaults to 1.0.
 }

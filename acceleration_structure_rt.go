@@ -2,7 +2,7 @@ package ash
 
 import vk "github.com/tomas-mraz/vulkan"
 
-// AccelerationStructure owns a Device acceleration structure handle,
+// AccelerationStructure owns a Manager acceleration structure handle,
 // its backing buffer, and optional device address.
 // Works for both BLAS (bottom-level) and TLAS (top-level).
 type AccelerationStructure struct {
