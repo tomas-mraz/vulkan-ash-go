@@ -3,11 +3,15 @@ package ash
 import (
 	"fmt"
 	"log/slog"
+	"runtime"
+	"slices"
 	"strings"
 	"unsafe"
 
 	vk "github.com/tomas-mraz/vulkan"
 )
+
+const MACOS = "darwin"
 
 var debug = false
 
@@ -17,7 +21,7 @@ type Manager struct {
 	Surface  vk.Surface
 	Gpu      vk.PhysicalDevice
 	Queue    vk.Queue
-	dbg      vk.DebugReportCallback
+	debugClb vk.DebugReportCallback
 }
 
 // DeviceOptions configures device creation for NewDeviceWithOptions.
@@ -55,13 +59,13 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 
 	// instanceExtensions := vk.GetRequiredInstanceExtensions()
 	if debug {
-		instanceExtensions = append(instanceExtensions,
-			"VK_EXT_debug_report\x00")
+		instanceExtensions = append(instanceExtensions, vk.ExtDebugReportExtensionName)
+	}
+	if runtime.GOOS == MACOS {
+		instanceExtensions = append(instanceExtensions, vk.KhrPortabilityEnumerationExtensionName)
 	}
 
-	// ANDROID:
-	// these layers must be included in APK,
-	// see Android.mk and ValidationLayers.mk
+	// ANDROID: these layers must be included in APK
 	instanceLayers := []string{
 		"VK_LAYER_KHRONOS_validation\x00",
 		// "VK_LAYER_LUNARG_api_dump\x00",
@@ -75,6 +79,11 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 		EnabledLayerCount:       uint32(len(instanceLayers)),
 		PpEnabledLayerNames:     instanceLayers,
 	}
+	// make possible detect KosmicKrisp and MoltenVK devices
+	if runtime.GOOS == MACOS {
+		instanceCreateInfo.Flags = vk.InstanceCreateFlags(vk.InstanceCreateEnumeratePortabilityBit)
+	}
+
 	manager := Manager{}
 	err := vk.Error(vk.CreateInstance(&instanceCreateInfo, nil, &manager.Instance))
 	if err != nil {
@@ -117,14 +126,6 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 	existingExtensions = GetDeviceExtensions(manager.Gpu)
 	slog.Debug(fmt.Sprintf("Device extensions: %v", existingExtensions))
 
-	// Phase 3: vk.CreateDevice with vk.DeviceCreateInfo (a logical device)
-
-	// ANDROID:
-	// these layers must be included in APK,
-	// "VK_LAYER_KHRONOS_validation\x00",
-	// "VK_LAYER_LUNARG_api_dump\x00",
-	deviceLayers := make([]string, 0)
-
 	queueCreateInfos := []vk.DeviceQueueCreateInfo{{
 		SType:            vk.StructureTypeDeviceQueueCreateInfo,
 		QueueCount:       1,
@@ -132,7 +133,10 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 	}}
 	var deviceExtensions []string
 	if manager.Surface != vk.NullSurface {
-		deviceExtensions = append(deviceExtensions, "VK_KHR_swapchain\x00")
+		deviceExtensions = append(deviceExtensions, vk.KhrSwapchainExtensionName)
+	}
+	if runtime.GOOS == MACOS && slices.Contains(existingExtensions, vk.KhrPortabilitySubsetExtensionName) {
+		deviceExtensions = append(deviceExtensions, vk.KhrPortabilitySubsetExtensionName)
 	}
 	if opts != nil {
 		for _, ext := range opts.DeviceExtensions {
@@ -145,8 +149,6 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 		PQueueCreateInfos:       queueCreateInfos,
 		EnabledExtensionCount:   uint32(len(deviceExtensions)),
 		PpEnabledExtensionNames: deviceExtensions,
-		EnabledLayerCount:       uint32(len(deviceLayers)),
-		PpEnabledLayerNames:     deviceLayers,
 	}
 	if opts != nil && opts.PNextChain != nil {
 		deviceCreateInfo.PNext = opts.PNextChain
@@ -154,8 +156,9 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 	if opts != nil && opts.EnabledFeatures != nil {
 		deviceCreateInfo.PEnabledFeatures = []vk.PhysicalDeviceFeatures{*opts.EnabledFeatures}
 	}
-	var device vk.Device // we choose the first GPU available for this device
-	err = vk.Error(vk.CreateDevice(manager.Gpu, &deviceCreateInfo, nil, &device))
+
+	// we choose the first GPU available for this device
+	err = vk.Error(vk.CreateDevice(manager.Gpu, &deviceCreateInfo, nil, &manager.Device))
 	if err != nil {
 		gpuDevices = nil
 		vk.DestroySurface(manager.Instance, manager.Surface, nil)
@@ -163,27 +166,20 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 		err = fmt.Errorf("vk.CreateDevice failed with %s", err)
 		return manager, err
 	}
-	manager.Device = device
-	var queue vk.Queue
-	vk.GetDeviceQueue(device, 0, 0, &queue)
-	manager.Queue = queue
+	vk.GetDeviceQueue(manager.Device, 0, 0, &manager.Queue)
 
 	if debug {
-		// Phase 4: vk.CreateDebugReportCallback
-
 		dbgCreateInfo := vk.DebugReportCallbackCreateInfo{
 			SType:       vk.StructureTypeDebugReportCallbackCreateInfo,
 			Flags:       vk.DebugReportFlags(vk.DebugReportErrorBit | vk.DebugReportWarningBit),
 			PfnCallback: dbgCallbackFunc,
 		}
-		var dbg vk.DebugReportCallback
-		err = vk.Error(vk.CreateDebugReportCallback(manager.Instance, &dbgCreateInfo, nil, &dbg))
+		err = vk.Error(vk.CreateDebugReportCallback(manager.Instance, &dbgCreateInfo, nil, &manager.debugClb))
 		if err != nil {
 			err = fmt.Errorf("vk.CreateDebugReportCallback failed with %s", err)
 			slog.Warn(err.Error())
 			return manager, nil
 		}
-		manager.dbg = dbg
 	}
 	return manager, nil
 }
@@ -193,7 +189,7 @@ func SetDebug(state bool) {
 }
 
 func (v *Manager) GetDebugCallback() vk.DebugReportCallback {
-	return v.dbg
+	return v.debugClb
 }
 
 // Destroy waits for the device to be idle and tears down the device,
@@ -201,8 +197,8 @@ func (v *Manager) GetDebugCallback() vk.DebugReportCallback {
 func (v *Manager) Destroy() {
 	vk.DeviceWaitIdle(v.Device)
 	vk.DestroyDevice(v.Device, nil)
-	if v.dbg != vk.NullDebugReportCallback {
-		vk.DestroyDebugReportCallback(v.Instance, v.dbg, nil)
+	if v.debugClb != vk.NullDebugReportCallback {
+		vk.DestroyDebugReportCallback(v.Instance, v.debugClb, nil)
 	}
 	if v.Surface != vk.NullSurface {
 		vk.DestroySurface(v.Instance, v.Surface, nil)
@@ -267,8 +263,7 @@ func getInstanceExtensions() (extNames []string) {
 	check(ret, "vk.EnumerateInstanceExtensionProperties")
 	for _, ext := range instanceExt {
 		ext.Deref()
-		extNames = append(extNames,
-			vk.ToString(ext.ExtensionName[:]))
+		extNames = append(extNames, vk.ToString(ext.ExtensionName[:]))
 	}
 	return extNames
 }
