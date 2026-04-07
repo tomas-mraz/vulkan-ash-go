@@ -10,7 +10,7 @@ Public API of the `ash` package. The overview below is split into exported struc
 | [`DeviceOptions`](#struct-deviceoptions)                 | common        |               | Options for advanced Vulkan device creation.                     |
 | [`Cleanup`](#struct-cleanup)                             | common        |               | Simple LIFO registry for cleanup steps.                          |
 | [`CommandContext`](#commandcontext)                      | common        |               | Command pool and a set of reusable command buffers.              |
-| [`VulkanSwapchainInfo`](#struct-vulkanswapchaininfo)     | common        |               | Metadata and handles for the swapchain and framebuffers.         |
+| [`Display`](#struct-display)                             | common        |               | Metadata and handles for the swapchain and framebuffers.         |
 | [`VulkanBufferInfo`](#struct-vulkanbufferinfo)           | common        |               | Simple vertex buffer helper.                                     |
 | [`BufferResourceOptions`](#struct-bufferresourceoptions) | common        |               | Configuration for a generic buffer resource.                     |
 | [`VulkanBufferResource`](#struct-vulkanbufferresource)   | common        |               | Generic representation of a Vulkan buffer and its memory.        |
@@ -209,7 +209,7 @@ Simple LIFO registry of cleanup objects implementing `Destroy()`.
 Manages a command pool and a set of reusable command buffers plus helpers for one-time command buffers.
 
 <a id="struct-vulkanswapchaininfo"></a>
-### `VulkanSwapchainInfo`
+### `Display`
 
 Carries swapchain handles, image counts, chosen format, dimensions, and created framebuffers.
 
@@ -497,33 +497,33 @@ Creates a `vk.ShaderModule` directly from raw SPIR-V bytes. The caller remains r
 ## NewSwapchainInfo{}
 
 ### `NewSwapchain()`
-`func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D) (VulkanSwapchainInfo, error)`
+`func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D) (Display, error)`
 
 Queries surface capabilities, selects a suitable format, and creates the swapchain. It also sets the resulting `DisplayFormat` and `DisplaySize`.
 
 <a id="swapchain-defaultswapchain"></a>
-### `(*VulkanSwapchainInfo).DefaultSwapchain`
-`func (s *VulkanSwapchainInfo) DefaultSwapchain() vk.Swapchain`
+### `(*Display).DefaultSwapchain`
+`func (s *Display) DefaultSwapchain() vk.Swapchain`
 
 Returns the first, and effectively the main, swapchain handle. The rest of the library works with this one by default.
 
 <a id="swapchain-defaultswapchainlen"></a>
-### `(*VulkanSwapchainInfo).DefaultSwapchainLen`
-`func (s *VulkanSwapchainInfo) DefaultSwapchainLen() uint32`
+### `(*Display).DefaultSwapchainLen`
+`func (s *Display) DefaultSwapchainLen() uint32`
 
 Returns the number of images in the primary swapchain. Typically used for framebuffer counts or per-frame resources.
 
 <a id="swapchain-createframebuffers"></a>
-### `(*VulkanSwapchainInfo).CreateFramebuffers`
-`func (s *VulkanSwapchainInfo) CreateFramebuffers(renderPass vk.RenderPass, depthView vk.ImageView) error`
+### `(*Display).CreateFramebuffers`
+`func (s *Display) CreateFramebuffers(renderPass vk.RenderPass, depthView vk.ImageView) error`
 
 Creates an image view for each swapchain image and then framebuffers for the given render pass. If `depthView` is non-null, it is attached as the second attachment.
 
 <a id="swapchain-destroy"></a>
-### `(*VulkanSwapchainInfo).Destroy`
-`func (s *VulkanSwapchainInfo) Destroy()`
+### `(*Display).Destroy`
+`func (s *Display) Destroy()`
 
-Cleans up framebuffers, image views, and all swapchain handles stored in the struct. It does not destroy the `vk.Surface` itself.
+Cleans up framebuffers, image views, swapchains, cached swapchain image handles, and finally destroys the owned `vk.Surface`.
 
 <a id="newbuffer"></a>
 ### `NewBuffer`
