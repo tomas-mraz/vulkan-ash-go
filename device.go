@@ -20,129 +20,6 @@ type Device struct {
 	dbg       vk.DebugReportCallback
 }
 
-func SetDebug(state bool) {
-	debug = state
-}
-
-func (v *Device) GetDebugCallback() vk.DebugReportCallback {
-	return v.dbg
-}
-
-// Destroy waits for the device to be idle and tears down the device,
-// debug callback, surface, and instance.
-func (v *Device) Destroy() {
-	vk.DeviceWaitIdle(v.Device)
-	vk.DestroyDevice(v.Device, nil)
-	if v.dbg != vk.NullDebugReportCallback {
-		vk.DestroyDebugReportCallback(v.Instance, v.dbg, nil)
-	}
-	vk.DestroySurface(v.Instance, v.Surface, nil)
-	vk.DestroyInstance(v.Instance, nil)
-}
-
-// NewExtentSize needs for Wayland
-func NewExtentSize(width, height int) vk.Extent2D {
-	return vk.Extent2D{
-		Width:  uint32(width),
-		Height: uint32(height),
-	}
-}
-
-func GetDeviceExtensions(gpu vk.PhysicalDevice) (extNames []string) {
-	var deviceExtLen uint32
-	ret := vk.EnumerateDeviceExtensionProperties(gpu, "", &deviceExtLen, nil)
-	check(ret, "vk.EnumerateDeviceExtensionProperties")
-	deviceExt := make([]vk.ExtensionProperties, deviceExtLen)
-	ret = vk.EnumerateDeviceExtensionProperties(gpu, "", &deviceExtLen, deviceExt)
-	check(ret, "vk.EnumerateDeviceExtensionProperties")
-	for _, ext := range deviceExt {
-		ext.Deref()
-		extNames = append(extNames,
-			vk.ToString(ext.ExtensionName[:]))
-	}
-	return extNames
-}
-
-// CheckDeviceExtensions returns true if the physical device supports all
-// required extensions. Missing extensions are returned in the second value.
-func CheckDeviceExtensions(gpu vk.PhysicalDevice, required []string) (ok bool, missing []string) {
-	available := make(map[string]struct{})
-	for _, name := range GetDeviceExtensions(gpu) {
-		available[name] = struct{}{}
-	}
-	for _, req := range required {
-		clean := strings.TrimRight(req, "\x00")
-		if _, found := available[clean]; !found {
-			missing = append(missing, clean)
-		}
-	}
-	return len(missing) == 0, missing
-}
-
-// CheckDeviceApiVersion returns true if the physical device supports at least
-// the given Device API version (created via vk.MakeVersion).
-func CheckDeviceApiVersion(gpu vk.PhysicalDevice, minVersion uint32) (ok bool, deviceVersion uint32) {
-	var props vk.PhysicalDeviceProperties
-	vk.GetPhysicalDeviceProperties(gpu, &props)
-	props.Deref()
-	return props.ApiVersion >= minVersion, props.ApiVersion
-}
-
-func getInstanceExtensions() (extNames []string) {
-	var instanceExtLen uint32
-	ret := vk.EnumerateInstanceExtensionProperties("", &instanceExtLen, nil)
-	check(ret, "vk.EnumerateInstanceExtensionProperties")
-	instanceExt := make([]vk.ExtensionProperties, instanceExtLen)
-	ret = vk.EnumerateInstanceExtensionProperties("", &instanceExtLen, instanceExt)
-	check(ret, "vk.EnumerateInstanceExtensionProperties")
-	for _, ext := range instanceExt {
-		ext.Deref()
-		extNames = append(extNames,
-			vk.ToString(ext.ExtensionName[:]))
-	}
-	return extNames
-}
-
-func getPhysicalDevices(instance vk.Instance) ([]vk.PhysicalDevice, error) {
-	var gpuCount uint32
-	err := vk.Error(vk.EnumeratePhysicalDevices(instance, &gpuCount, nil))
-	if err != nil {
-		err = fmt.Errorf("vk.EnumeratePhysicalDevices failed with %s", err)
-		return nil, err
-	}
-	if gpuCount == 0 {
-		err = fmt.Errorf("getPhysicalDevice: no GPUs found on the system")
-		return nil, err
-	}
-	gpuList := make([]vk.PhysicalDevice, gpuCount)
-	err = vk.Error(vk.EnumeratePhysicalDevices(instance, &gpuCount, gpuList))
-	if err != nil {
-		err = fmt.Errorf("vk.EnumeratePhysicalDevices failed with %s", err)
-		return nil, err
-	}
-	return gpuList, nil
-}
-
-func dbgCallbackFunc(flags vk.DebugReportFlags, objectType vk.DebugReportObjectType, object uint64, location uint64, messageCode int32, pLayerPrefix string, pMessage string, pUserData unsafe.Pointer) vk.Bool32 {
-	switch {
-	case flags&vk.DebugReportFlags(vk.DebugReportErrorBit) != 0:
-		slog.Error(fmt.Sprintf("[%d] %s on layer %s", messageCode, pMessage, pLayerPrefix))
-	case flags&vk.DebugReportFlags(vk.DebugReportWarningBit) != 0:
-		slog.Warn(fmt.Sprintf("[%d] %s on layer %s", messageCode, pMessage, pLayerPrefix))
-	default:
-		slog.Warn(fmt.Sprintf("unknown debug message %d (layer %s)", messageCode, pLayerPrefix))
-	}
-	return vk.False
-}
-
-// DeviceOptions configures device creation for NewDeviceWithOptions.
-type DeviceOptions struct {
-	DeviceExtensions []string
-	PNextChain       unsafe.Pointer // pNext chain for VkDeviceCreateInfo
-	EnabledFeatures  *vk.PhysicalDeviceFeatures
-	ApiVersion       uint32 // Device API version, e.g. vk.MakeVersion(1,2,0). 0 defaults to 1.0.
-}
-
 // NewDevice creates a Device device with custom options for extensions and features.
 func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc func(instance vk.Instance, window uintptr) (vk.Surface, error), window uintptr, opts *DeviceOptions) (Device, error) {
 
@@ -292,4 +169,127 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		vo.dbg = dbg
 	}
 	return vo, nil
+}
+
+func SetDebug(state bool) {
+	debug = state
+}
+
+func (v *Device) GetDebugCallback() vk.DebugReportCallback {
+	return v.dbg
+}
+
+// Destroy waits for the device to be idle and tears down the device,
+// debug callback, surface, and instance.
+func (v *Device) Destroy() {
+	vk.DeviceWaitIdle(v.Device)
+	vk.DestroyDevice(v.Device, nil)
+	if v.dbg != vk.NullDebugReportCallback {
+		vk.DestroyDebugReportCallback(v.Instance, v.dbg, nil)
+	}
+	vk.DestroySurface(v.Instance, v.Surface, nil)
+	vk.DestroyInstance(v.Instance, nil)
+}
+
+// NewExtentSize needs for Wayland
+func NewExtentSize(width, height int) vk.Extent2D {
+	return vk.Extent2D{
+		Width:  uint32(width),
+		Height: uint32(height),
+	}
+}
+
+func GetDeviceExtensions(gpu vk.PhysicalDevice) (extNames []string) {
+	var deviceExtLen uint32
+	ret := vk.EnumerateDeviceExtensionProperties(gpu, "", &deviceExtLen, nil)
+	check(ret, "vk.EnumerateDeviceExtensionProperties")
+	deviceExt := make([]vk.ExtensionProperties, deviceExtLen)
+	ret = vk.EnumerateDeviceExtensionProperties(gpu, "", &deviceExtLen, deviceExt)
+	check(ret, "vk.EnumerateDeviceExtensionProperties")
+	for _, ext := range deviceExt {
+		ext.Deref()
+		extNames = append(extNames,
+			vk.ToString(ext.ExtensionName[:]))
+	}
+	return extNames
+}
+
+// CheckDeviceExtensions returns true if the physical device supports all
+// required extensions. Missing extensions are returned in the second value.
+func CheckDeviceExtensions(gpu vk.PhysicalDevice, required []string) (ok bool, missing []string) {
+	available := make(map[string]struct{})
+	for _, name := range GetDeviceExtensions(gpu) {
+		available[name] = struct{}{}
+	}
+	for _, req := range required {
+		clean := strings.TrimRight(req, "\x00")
+		if _, found := available[clean]; !found {
+			missing = append(missing, clean)
+		}
+	}
+	return len(missing) == 0, missing
+}
+
+// CheckDeviceApiVersion returns true if the physical device supports at least
+// the given Device API version (created via vk.MakeVersion).
+func CheckDeviceApiVersion(gpu vk.PhysicalDevice, minVersion uint32) (ok bool, deviceVersion uint32) {
+	var props vk.PhysicalDeviceProperties
+	vk.GetPhysicalDeviceProperties(gpu, &props)
+	props.Deref()
+	return props.ApiVersion >= minVersion, props.ApiVersion
+}
+
+func getInstanceExtensions() (extNames []string) {
+	var instanceExtLen uint32
+	ret := vk.EnumerateInstanceExtensionProperties("", &instanceExtLen, nil)
+	check(ret, "vk.EnumerateInstanceExtensionProperties")
+	instanceExt := make([]vk.ExtensionProperties, instanceExtLen)
+	ret = vk.EnumerateInstanceExtensionProperties("", &instanceExtLen, instanceExt)
+	check(ret, "vk.EnumerateInstanceExtensionProperties")
+	for _, ext := range instanceExt {
+		ext.Deref()
+		extNames = append(extNames,
+			vk.ToString(ext.ExtensionName[:]))
+	}
+	return extNames
+}
+
+func getPhysicalDevices(instance vk.Instance) ([]vk.PhysicalDevice, error) {
+	var gpuCount uint32
+	err := vk.Error(vk.EnumeratePhysicalDevices(instance, &gpuCount, nil))
+	if err != nil {
+		err = fmt.Errorf("vk.EnumeratePhysicalDevices failed with %s", err)
+		return nil, err
+	}
+	if gpuCount == 0 {
+		err = fmt.Errorf("getPhysicalDevice: no GPUs found on the system")
+		return nil, err
+	}
+	gpuList := make([]vk.PhysicalDevice, gpuCount)
+	err = vk.Error(vk.EnumeratePhysicalDevices(instance, &gpuCount, gpuList))
+	if err != nil {
+		err = fmt.Errorf("vk.EnumeratePhysicalDevices failed with %s", err)
+		return nil, err
+	}
+	return gpuList, nil
+}
+
+func dbgCallbackFunc(flags vk.DebugReportFlags, objectType vk.DebugReportObjectType, object uint64, location uint64, messageCode int32, pLayerPrefix string, pMessage string, pUserData unsafe.Pointer) vk.Bool32 {
+	switch {
+	case flags&vk.DebugReportFlags(vk.DebugReportErrorBit) != 0:
+		slog.Error(fmt.Sprintf("[%d] %s on layer %s", messageCode, pMessage, pLayerPrefix))
+	case flags&vk.DebugReportFlags(vk.DebugReportWarningBit) != 0:
+		slog.Warn(fmt.Sprintf("[%d] %s on layer %s", messageCode, pMessage, pLayerPrefix))
+	default:
+		slog.Warn(fmt.Sprintf("unknown debug message %d (layer %s)", messageCode, pLayerPrefix))
+	}
+	return vk.False
+}
+
+// DeviceOptions configures device creation for NewDeviceWithOptions.
+type DeviceOptions struct {
+	DeviceExtensions []string
+	PNextChain       unsafe.Pointer // pNext chain for VkDeviceCreateInfo
+	EnabledFeatures  *vk.PhysicalDeviceFeatures
+	ApiVersion       uint32 // Device API version, e.g. vk.MakeVersion(1,2,0). 0 defaults to 1.0.
 }
