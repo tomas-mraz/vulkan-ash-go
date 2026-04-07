@@ -105,7 +105,7 @@ func NewBufferResource(device vk.Device, gpu vk.PhysicalDevice, size uint64, opt
 	}
 
 	if opts.EnableDeviceAddress {
-		res.DeviceAddress = GetBufferDeviceAddress(device, res.Buffer)
+		res.DeviceAddress = res.getDeviceAddress()
 	}
 
 	return res, nil
@@ -165,4 +165,11 @@ func (r *BufferResource) Destroy() {
 	}
 	r.DeviceAddress = 0
 	r.Size = 0
+}
+
+func (r *BufferResource) getDeviceAddress() vk.DeviceAddress {
+	return vk.GetBufferDeviceAddress(r.device, &vk.BufferDeviceAddressInfo{
+		SType:  vk.StructureTypeBufferDeviceAddressInfo,
+		Buffer: r.Buffer,
+	})
 }
