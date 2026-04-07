@@ -16,6 +16,8 @@ type RaytracingContext struct {
 	gpu    vk.PhysicalDevice
 	queue  vk.Queue
 	cmdCtx *CommandContext
+
+	accelerationStructures []AccelerationStructure
 }
 
 // TLASInstance describes one TLAS instance referencing an already built BLAS.
@@ -36,6 +38,18 @@ func NewRaytracingContext(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queu
 		queue:  queue,
 		cmdCtx: cmdCtx,
 	}
+}
+
+// Destroy releases all acceleration structures created by this context.
+func (rt *RaytracingContext) Destroy() {
+	if rt == nil {
+		return
+	}
+	// Destroy in reverse order (TLAS before BLAS)
+	for i := len(rt.accelerationStructures) - 1; i >= 0; i-- {
+		rt.accelerationStructures[i].Destroy()
+	}
+	rt.accelerationStructures = nil
 }
 
 // NewBottomLevelAccelerationStructure builds a BLAS from pre-configured geometry slices.
@@ -124,12 +138,14 @@ func (rt *RaytracingContext) NewBottomLevelAccelerationStructure(
 		return AccelerationStructure{}, fmt.Errorf("EndOneTime: %w", err)
 	}
 
-	return AccelerationStructure{
+	result := AccelerationStructure{
 		device:                rt.device,
 		AccelerationStructure: as,
 		Buffer:                asBuf,
 		Type:                  vk.AccelerationStructureTypeBottomLevel,
-	}, nil
+	}
+	rt.accelerationStructures = append(rt.accelerationStructures, result)
+	return result, nil
 }
 
 // NewTopLevelAccelerationStructure builds a TLAS from the provided BLAS instances.
@@ -234,12 +250,14 @@ func (rt *RaytracingContext) NewTopLevelAccelerationStructure(instances []TLASIn
 		return AccelerationStructure{}, fmt.Errorf("EndOneTime: %w", err)
 	}
 
-	return AccelerationStructure{
+	result := AccelerationStructure{
 		device:                rt.device,
 		AccelerationStructure: as,
 		Buffer:                asBuf,
 		Type:                  vk.AccelerationStructureTypeTopLevel,
-	}, nil
+	}
+	rt.accelerationStructures = append(rt.accelerationStructures, result)
+	return result, nil
 }
 
 func encodeTLASInstances(instances []TLASInstance) ([]byte, error) {
