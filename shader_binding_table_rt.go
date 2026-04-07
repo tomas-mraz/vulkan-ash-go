@@ -11,7 +11,7 @@ import (
 // regions for each shader group type (raygen, miss, hit, callable).
 type ShaderBindingTable struct {
 	device   vk.Device
-	Buffer   VulkanBufferResource
+	Buffer   BufferResource
 	Raygen   vk.StridedDeviceAddressRegion
 	Miss     vk.StridedDeviceAddressRegion
 	Hit      vk.StridedDeviceAddressRegion

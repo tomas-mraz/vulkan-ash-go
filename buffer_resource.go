@@ -7,7 +7,7 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// BufferResourceOptions configures VulkanBufferResource creation.
+// BufferResourceOptions configures BufferResource creation.
 type BufferResourceOptions struct {
 	Usage               vk.BufferUsageFlags
 	MemoryProperties    vk.MemoryPropertyFlagBits
@@ -15,9 +15,9 @@ type BufferResourceOptions struct {
 	InitialData         unsafe.Pointer
 }
 
-// VulkanBufferResource is a generic Manager buffer allocation.
+// BufferResource is a generic Manager buffer allocation.
 // It owns the VkBuffer, its backing VkDeviceMemory, and optional device address metadata.
-type VulkanBufferResource struct {
+type BufferResource struct {
 	device        vk.Device
 	Buffer        vk.Buffer
 	Memory        vk.DeviceMemory
@@ -28,8 +28,8 @@ type VulkanBufferResource struct {
 
 // NewBufferResource creates a generic buffer resource with configurable usage,
 // memory properties, initial data, and optional device address support.
-func NewBufferResource(device vk.Device, gpu vk.PhysicalDevice, size uint64, opts BufferResourceOptions) (VulkanBufferResource, error) {
-	var res VulkanBufferResource
+func NewBufferResource(device vk.Device, gpu vk.PhysicalDevice, size uint64, opts BufferResourceOptions) (BufferResource, error) {
+	var res BufferResource
 	res.device = device
 	res.Size = size
 	res.Usage = opts.Usage
@@ -65,7 +65,7 @@ func NewBufferResource(device vk.Device, gpu vk.PhysicalDevice, size uint64, opt
 	memIdx, ok := vk.FindMemoryTypeIndex(gpu, memReqs.MemoryTypeBits, opts.MemoryProperties)
 	if !ok {
 		vk.DestroyBuffer(device, res.Buffer, nil)
-		var empty VulkanBufferResource
+		var empty BufferResource
 		return empty, fmt.Errorf("vk.FindMemoryTypeIndex failed for requested buffer memory properties")
 	}
 
@@ -90,14 +90,14 @@ func NewBufferResource(device vk.Device, gpu vk.PhysicalDevice, size uint64, opt
 	if opts.InitialData != nil {
 		if vk.MemoryPropertyFlags(opts.MemoryProperties)&vk.MemoryPropertyFlags(vk.MemoryPropertyHostVisibleBit) == 0 {
 			res.Destroy()
-			var empty VulkanBufferResource
+			var empty BufferResource
 			return empty, fmt.Errorf("initial buffer data requires host-visible memory")
 		}
 		var mapped unsafe.Pointer
 		err = vk.Error(vk.MapMemory(device, res.Memory, 0, vk.DeviceSize(size), 0, &mapped))
 		if err != nil {
 			res.Destroy()
-			var empty VulkanBufferResource
+			var empty BufferResource
 			return empty, fmt.Errorf("vk.MapMemory failed with %s", err)
 		}
 		vk.Memcopy(mapped, unsafe.Slice((*byte)(opts.InitialData), int(size)))
@@ -113,7 +113,7 @@ func NewBufferResource(device vk.Device, gpu vk.PhysicalDevice, size uint64, opt
 
 // NewBufferHostVisible creates a host-visible/coherent buffer from a typed slice.
 // The buffer size is computed automatically from the slice length and element size.
-func NewBufferHostVisible[T any](device vk.Device, gpu vk.PhysicalDevice, data []T, enableDeviceAddress bool, usage vk.BufferUsageFlags) (VulkanBufferResource, error) {
+func NewBufferHostVisible[T any](device vk.Device, gpu vk.PhysicalDevice, data []T, enableDeviceAddress bool, usage vk.BufferUsageFlags) (BufferResource, error) {
 	size := uint64(len(data)) * uint64(unsafe.Sizeof(*new(T)))
 	var dataPtr unsafe.Pointer
 	if len(data) > 0 {
@@ -129,7 +129,7 @@ func NewBufferHostVisible[T any](device vk.Device, gpu vk.PhysicalDevice, data [
 
 // NewBufferDeviceLocal creates a device-local buffer.
 // Manager-local memory cannot be written from CPU, so size is specified in bytes directly.
-func NewBufferDeviceLocal(device vk.Device, gpu vk.PhysicalDevice, size uint64, enableDeviceAddress bool, usage vk.BufferUsageFlags) (VulkanBufferResource, error) {
+func NewBufferDeviceLocal(device vk.Device, gpu vk.PhysicalDevice, size uint64, enableDeviceAddress bool, usage vk.BufferUsageFlags) (BufferResource, error) {
 	return NewBufferResource(device, gpu, size, BufferResourceOptions{
 		Usage:               usage,
 		MemoryProperties:    vk.MemoryPropertyDeviceLocalBit,
@@ -138,7 +138,7 @@ func NewBufferDeviceLocal(device vk.Device, gpu vk.PhysicalDevice, size uint64, 
 }
 
 // Update overwrites the entire buffer contents. The resource must use host-visible memory.
-func (r *VulkanBufferResource) Update(data []byte) error {
+func (r *BufferResource) Update(data []byte) error {
 	if uint64(len(data)) > r.Size {
 		return fmt.Errorf("buffer update too large: got %d bytes for buffer size %d", len(data), r.Size)
 	}
@@ -151,7 +151,7 @@ func (r *VulkanBufferResource) Update(data []byte) error {
 	return nil
 }
 
-func (r *VulkanBufferResource) Destroy() {
+func (r *BufferResource) Destroy() {
 	if r == nil {
 		return
 	}

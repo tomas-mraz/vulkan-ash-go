@@ -170,7 +170,7 @@ func destroyGLTFPrimitives(prims []GLTFPrimitive) {
 	}
 }
 
-func createGLTFGeometryNodesBuffer(dev vk.Device, gpu vk.PhysicalDevice, prims []GLTFPrimitive) (VulkanBufferResource, error) {
+func createGLTFGeometryNodesBuffer(dev vk.Device, gpu vk.PhysicalDevice, prims []GLTFPrimitive) (BufferResource, error) {
 	nodes := make([]gltfGeometryNode, len(prims))
 	for i := range prims {
 		nodes[i] = gltfGeometryNode{
@@ -182,7 +182,7 @@ func createGLTFGeometryNodesBuffer(dev vk.Device, gpu vk.PhysicalDevice, prims [
 	}
 	buf, err := NewBufferHostVisible(dev, gpu, nodes, true, vk.BufferUsageFlags(vk.BufferUsageStorageBufferBit|vk.BufferUsageShaderDeviceAddressBit))
 	if err != nil {
-		return VulkanBufferResource{}, fmt.Errorf("create geometry nodes buffer: %w", err)
+		return BufferResource{}, fmt.Errorf("create geometry nodes buffer: %w", err)
 	}
 	return buf, nil
 }

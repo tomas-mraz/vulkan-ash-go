@@ -5,8 +5,8 @@ import vk "github.com/tomas-mraz/vulkan"
 // GLTFPrimitive holds per-primitive GPU resources and metadata used by the
 // ray tracing examples.
 type GLTFPrimitive struct {
-	VertexBuffer  VulkanBufferResource
-	IndexBuffer   VulkanBufferResource
+	VertexBuffer  BufferResource
+	IndexBuffer   BufferResource
 	VertexCount   uint32
 	TriangleCount uint32
 	Transform     [12]float32
@@ -19,12 +19,12 @@ type GLTFPrimitive struct {
 type GLTFModel struct {
 	device         vk.Device
 	Primitives     []GLTFPrimitive
-	GeometryBuffer VulkanBufferResource
+	GeometryBuffer BufferResource
 	BLAS           AccelerationStructure
 	Textures       []ImageResource
 }
 
-func NewGLTFModel(device vk.Device, primitives []GLTFPrimitive, geometryBuffer VulkanBufferResource, blas AccelerationStructure, textures []ImageResource) GLTFModel {
+func NewGLTFModel(device vk.Device, primitives []GLTFPrimitive, geometryBuffer BufferResource, blas AccelerationStructure, textures []ImageResource) GLTFModel {
 	return GLTFModel{
 		device:         device,
 		Primitives:     primitives,

@@ -8,12 +8,12 @@ import vk "github.com/tomas-mraz/vulkan"
 type AccelerationStructure struct {
 	device                vk.Device
 	AccelerationStructure vk.AccelerationStructure
-	Buffer                VulkanBufferResource
 	Type                  vk.AccelerationStructureType
 	DeviceAddress         vk.DeviceAddress
+	Buffer                BufferResource
 }
 
-// GetDeviceAddress returns the cached device address, querying it on first call.
+// GetDeviceAddress returns the cached device address, querying it on the first call.
 func (a *AccelerationStructure) GetDeviceAddress() vk.DeviceAddress {
 	if a.DeviceAddress == 0 && a.AccelerationStructure != vk.AccelerationStructure(vk.NullHandle) {
 		a.DeviceAddress = vk.GetAccelerationStructureDeviceAddress(a.device, &vk.AccelerationStructureDeviceAddressInfo{
