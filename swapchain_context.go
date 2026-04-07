@@ -6,40 +6,32 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// SwapchainRecreateFunc rebuilds resources that depend on the newly created swapchain.
+// SwapchainRecreateFunc rebuilds resources that depend on the newly created display.
 // Typical callers recreate depth images, framebuffers, and any size-dependent pipelines.
-type SwapchainRecreateFunc func(swap *VulkanSwapchainInfo) error
+type SwapchainRecreateFunc func(display *Display) error
 
 // SwapchainContext is a lightweight orchestration object for frame presentation.
-// It centralizes Acquire/Present result handling and coordinates swapchain recreation,
-// but it does not own the Device handles stored in VulkanSwapchainInfo.
+// It centralizes Acquire/Present result handling and coordinates swapchain recreation.
 type SwapchainContext struct {
-	device  vk.Device
-	gpu     vk.PhysicalDevice
-	surface vk.Surface
-	queue   vk.Queue
-
-	swapchain     *VulkanSwapchainInfo
+	queue         vk.Queue
+	display       *Display
 	needsRecreate bool
 }
 
 // NewSwapchainContext groups the common swapchain dependencies without taking ownership.
-func NewSwapchainContext(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, queue vk.Queue, swapchain *VulkanSwapchainInfo) SwapchainContext {
+func NewSwapchainContext(queue vk.Queue, display *Display) SwapchainContext {
 	return SwapchainContext{
-		device:    device,
-		gpu:       gpu,
-		surface:   surface,
-		queue:     queue,
-		swapchain: swapchain,
+		queue:   queue,
+		display: display,
 	}
 }
 
-// GetSwapchain returns the currently attached swapchain resource.
-func (s *SwapchainContext) GetSwapchain() *VulkanSwapchainInfo {
+// GetSwapchain returns the currently attached display resource.
+func (s *SwapchainContext) GetSwapchain() *Display {
 	if s == nil {
 		return nil
 	}
-	return s.swapchain
+	return s.display
 }
 
 // NeedsRecreate reports whether AcquireNextImage or PresentImage observed that the
@@ -60,20 +52,15 @@ func (s *SwapchainContext) RequestRecreate() {
 }
 
 // AcquireNextImage acquires the next swapchain image and classifies WSI warnings centrally.
-// When Device returns SUBOPTIMAL, acquisition still succeeds and NeedsRecreate becomes true.
-// When Device returns OUT_OF_DATE, no image is acquired and NeedsRecreate becomes true.
 func (s *SwapchainContext) AcquireNextImage(timeout uint64, semaphore vk.Semaphore, fence vk.Fence) (imageIndex uint32, acquired bool, err error) {
-	if s == nil {
-		return 0, false, fmt.Errorf("swapchain context is nil")
+	if s == nil || s.display == nil {
+		return 0, false, fmt.Errorf("swapchain context or display is nil")
 	}
-	if s.swapchain == nil {
-		return 0, false, fmt.Errorf("swapchain context has nil swapchain")
-	}
-	if len(s.swapchain.Swapchains) == 0 {
-		return 0, false, fmt.Errorf("swapchain context has no swapchain handles")
+	if len(s.display.Swapchains) == 0 {
+		return 0, false, fmt.Errorf("display has no swapchain handles")
 	}
 
-	result := vk.AcquireNextImage(s.device, s.swapchain.DefaultSwapchain(), timeout, semaphore, fence, &imageIndex)
+	result := vk.AcquireNextImage(s.display.Device.Device, s.display.DefaultSwapchain(), timeout, semaphore, fence, &imageIndex)
 	acquired, recreate, err := classifySwapchainResult(result)
 	if recreate {
 		s.needsRecreate = true
@@ -85,17 +72,12 @@ func (s *SwapchainContext) AcquireNextImage(timeout uint64, semaphore vk.Semapho
 }
 
 // PresentImage presents the rendered image and classifies WSI warnings centrally.
-// SUBOPTIMAL presents successfully but requests recreation; OUT_OF_DATE skips presentation
-// and requests recreation.
 func (s *SwapchainContext) PresentImage(imageIndex uint32, waitSemaphores []vk.Semaphore) (presented bool, err error) {
-	if s == nil {
-		return false, fmt.Errorf("swapchain context is nil")
+	if s == nil || s.display == nil {
+		return false, fmt.Errorf("swapchain context or display is nil")
 	}
-	if s.swapchain == nil {
-		return false, fmt.Errorf("swapchain context has nil swapchain")
-	}
-	if len(s.swapchain.Swapchains) == 0 {
-		return false, fmt.Errorf("swapchain context has no swapchain handles")
+	if len(s.display.Swapchains) == 0 {
+		return false, fmt.Errorf("display has no swapchain handles")
 	}
 
 	presentInfo := vk.PresentInfo{
@@ -103,7 +85,7 @@ func (s *SwapchainContext) PresentImage(imageIndex uint32, waitSemaphores []vk.S
 		WaitSemaphoreCount: uint32(len(waitSemaphores)),
 		PWaitSemaphores:    waitSemaphores,
 		SwapchainCount:     1,
-		PSwapchains:        []vk.Swapchain{s.swapchain.DefaultSwapchain()},
+		PSwapchains:        []vk.Swapchain{s.display.DefaultSwapchain()},
 		PImageIndices:      []uint32{imageIndex},
 	}
 	result := vk.QueuePresent(s.queue, &presentInfo)
@@ -118,37 +100,33 @@ func (s *SwapchainContext) PresentImage(imageIndex uint32, waitSemaphores []vk.S
 }
 
 // Recreate rebuilds the attached swapchain and runs an optional callback for dependent resources.
-// The callback is invoked only after a new swapchain has been created successfully.
 func (s *SwapchainContext) Recreate(windowSize vk.Extent2D, recreateFn SwapchainRecreateFunc) error {
-	if s == nil {
-		return fmt.Errorf("swapchain context is nil")
+	if s == nil || s.display == nil {
+		return fmt.Errorf("swapchain context or display is nil")
 	}
-	if s.swapchain == nil {
-		return fmt.Errorf("swapchain context has nil swapchain")
-	}
-	if len(s.swapchain.Swapchains) == 0 {
-		return fmt.Errorf("swapchain context has no swapchain handles")
+	if len(s.display.Swapchains) == 0 {
+		return fmt.Errorf("display has no swapchain handles")
 	}
 
-	if err := vk.Error(vk.DeviceWaitIdle(s.device)); err != nil {
+	if err := vk.Error(vk.DeviceWaitIdle(s.display.Device.Device)); err != nil {
 		return fmt.Errorf("vk.DeviceWaitIdle failed with %w", err)
 	}
 
-	oldSwap := *s.swapchain
+	oldDisplay := *s.display
 
-	swap, err := newSwapchain(s.device, s.gpu, s.surface, windowSize, oldSwap.DefaultSwapchain())
+	newDisp, err := newDisplay(s.display.Device, s.display.surface, windowSize, oldDisplay.DefaultSwapchain())
 	if err != nil {
 		return err
 	}
 	if recreateFn != nil {
-		if err := recreateFn(&swap); err != nil {
-			swap.Destroy()
+		if err := recreateFn(newDisp); err != nil {
+			newDisp.destroySwapchain()
 			return err
 		}
 	}
 
-	oldSwap.Destroy()
-	*s.swapchain = swap
+	oldDisplay.destroySwapchain()
+	*s.display = *newDisp
 	s.needsRecreate = false
 	return nil
 }

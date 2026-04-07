@@ -12,12 +12,11 @@ import (
 var debug = false
 
 type Device struct {
-	Device    vk.Device
-	Instance  vk.Instance
-	Surface   vk.Surface
-	GpuDevice vk.PhysicalDevice
-	Queue     vk.Queue
-	dbg       vk.DebugReportCallback
+	Instance vk.Instance
+	Device   vk.Device
+	Gpu      vk.PhysicalDevice
+	Queue    vk.Queue
+	dbg      vk.DebugReportCallback
 }
 
 func SetDebug(state bool) {
@@ -36,7 +35,6 @@ func (v *Device) Destroy() {
 	if v.dbg != vk.NullDebugReportCallback {
 		vk.DestroyDebugReportCallback(v.Instance, v.dbg, nil)
 	}
-	vk.DestroySurface(v.Instance, v.Surface, nil)
 	vk.DestroyInstance(v.Instance, nil)
 }
 
@@ -144,7 +142,7 @@ type DeviceOptions struct {
 }
 
 // NewDevice creates a Device device with custom options for extensions and features.
-func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc func(instance vk.Instance, window uintptr) (vk.Surface, error), window uintptr, opts *DeviceOptions) (Device, error) {
+func NewDevice(appName string, instanceExtensions []string, opts *DeviceOptions) (Device, error) {
 
 	apiVersion := vk.MakeVersion(1, 0, 0)
 	if opts != nil && opts.ApiVersion != 0 {
@@ -195,17 +193,17 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 	if err != nil {
 		return Device{}, err
 	}
-
-	vo.Surface, err = createSurfaceFunc(vo.Instance, window) // Android use a different way to get surface
-	if err != nil {
-		vk.DestroyInstance(vo.Instance, nil)
-		err = fmt.Errorf("create surface failed with %s", err)
-		return Device{}, err
-	}
+	/*
+		vo.Surface, err = createSurfaceFunc(vo.Instance, window) // Android use a different way to get surface
+		if err != nil {
+			vk.DestroyInstance(vo.Instance, nil)
+			err = fmt.Errorf("create surface failed with %s", err)
+			return Device{}, err
+		}
+	*/
 	var gpuDevices []vk.PhysicalDevice
 	if gpuDevices, err = getPhysicalDevices(vo.Instance); err != nil {
 		gpuDevices = nil
-		vk.DestroySurface(vo.Instance, vo.Surface, nil)
 		vk.DestroyInstance(vo.Instance, nil)
 		return Device{}, err
 	}
@@ -219,8 +217,8 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		aaa.Free()
 	}
 
-	vo.GpuDevice = gpuDevices[0] //FIXME select GPU device
-	existingExtensions = GetDeviceExtensions(vo.GpuDevice)
+	vo.Gpu = gpuDevices[0] //FIXME select GPU device
+	existingExtensions = GetDeviceExtensions(vo.Gpu)
 	slog.Debug(fmt.Sprintf("Device extensions: %v", existingExtensions))
 
 	// Phase 3: vk.CreateDevice with vk.DeviceCreateInfo (a logical device)
@@ -236,14 +234,14 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		QueueCount:       1,
 		PQueuePriorities: []float32{1.0},
 	}}
+
+	//FIXME make possible compute-only without swapschain
+	//if vo.Surface != vk.NullSurface {
 	var deviceExtensions []string
-	if vo.Surface != vk.NullSurface {
-		deviceExtensions = append(deviceExtensions, "VK_KHR_swapchain\x00")
-	}
-	if opts != nil {
-		for _, ext := range opts.DeviceExtensions {
-			deviceExtensions = append(deviceExtensions, ext)
-		}
+	deviceExtensions = append(deviceExtensions, "VK_KHR_swapchain\x00")
+	//}
+	if opts != nil && opts.DeviceExtensions != nil {
+		deviceExtensions = append(deviceExtensions, opts.DeviceExtensions...)
 	}
 	deviceCreateInfo := vk.DeviceCreateInfo{
 		SType:                   vk.StructureTypeDeviceCreateInfo,
@@ -261,10 +259,9 @@ func NewDevice(appName string, instanceExtensions []string, createSurfaceFunc fu
 		deviceCreateInfo.PEnabledFeatures = []vk.PhysicalDeviceFeatures{*opts.EnabledFeatures}
 	}
 	var device vk.Device // we choose the first GPU available for this device
-	err = vk.Error(vk.CreateDevice(vo.GpuDevice, &deviceCreateInfo, nil, &device))
+	err = vk.Error(vk.CreateDevice(vo.Gpu, &deviceCreateInfo, nil, &device))
 	if err != nil {
 		gpuDevices = nil
-		vk.DestroySurface(vo.Instance, vo.Surface, nil)
 		vk.DestroyInstance(vo.Instance, nil)
 		err = fmt.Errorf("vk.CreateDevice failed with %s", err)
 		return vo, err
