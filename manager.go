@@ -204,7 +204,9 @@ func (v *Manager) Destroy() {
 	if v.dbg != vk.NullDebugReportCallback {
 		vk.DestroyDebugReportCallback(v.Instance, v.dbg, nil)
 	}
-	vk.DestroySurface(v.Instance, v.Surface, nil)
+	if v.Surface != vk.NullSurface {
+		vk.DestroySurface(v.Instance, v.Surface, nil)
+	}
 	vk.DestroyInstance(v.Instance, nil)
 }
 
