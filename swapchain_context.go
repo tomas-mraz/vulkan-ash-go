@@ -8,19 +8,19 @@ import (
 
 // SwapchainRecreateFunc rebuilds resources that depend on the newly created swapchain.
 // Typical callers recreate depth images, framebuffers, and any size-dependent pipelines.
-type SwapchainRecreateFunc func(swap *VulkanSwapchainInfo) error
+type SwapchainRecreateFunc func(swap *Swapchain) error
 
 // SwapchainContext is a lightweight orchestration object for frame presentation.
 // It centralizes Acquire/Present result handling and coordinates swapchain recreation,
-// but it does not own the Manager or VulkanSwapchainInfo it references.
+// but it does not own the Manager or Swapchain it references.
 type SwapchainContext struct {
 	manager       *Manager
-	swapchain     *VulkanSwapchainInfo
+	swapchain     *Swapchain
 	needsRecreate bool
 }
 
 // NewSwapchainContext groups the common swapchain dependencies without taking ownership.
-func NewSwapchainContext(manager *Manager, swapchain *VulkanSwapchainInfo) SwapchainContext {
+func NewSwapchainContext(manager *Manager, swapchain *Swapchain) SwapchainContext {
 	return SwapchainContext{
 		manager:   manager,
 		swapchain: swapchain,
@@ -28,7 +28,7 @@ func NewSwapchainContext(manager *Manager, swapchain *VulkanSwapchainInfo) Swapc
 }
 
 // GetSwapchain returns the currently attached swapchain resource.
-func (s *SwapchainContext) GetSwapchain() *VulkanSwapchainInfo {
+func (s *SwapchainContext) GetSwapchain() *Swapchain {
 	if s == nil {
 		return nil
 	}

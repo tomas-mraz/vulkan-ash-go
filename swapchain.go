@@ -7,7 +7,7 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-type VulkanSwapchainInfo struct {
+type Swapchain struct {
 	Device vk.Device
 
 	Swapchains   []vk.Swapchain
@@ -22,17 +22,17 @@ type VulkanSwapchainInfo struct {
 	swapchainImages []vk.Image // cached for CmdCopyToSwapchain
 }
 
-func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D) (VulkanSwapchainInfo, error) {
+func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D) (Swapchain, error) {
 	return newSwapchain(device, gpu, surface, windowSize, vk.NullSwapchain)
 }
 
-func newSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D, oldSwapchain vk.Swapchain) (VulkanSwapchainInfo, error) {
+func newSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D, oldSwapchain vk.Swapchain) (Swapchain, error) {
 	//gpu := v.gpuDevices[0]
 
 	// Phase 1: vk.GetPhysicalDeviceSurfaceCapabilities
 	//			vk.GetPhysicalDeviceSurfaceFormats
 
-	var swap VulkanSwapchainInfo
+	var swap Swapchain
 	var surfaceCapabilities vk.SurfaceCapabilities
 	err := vk.Error(vk.GetPhysicalDeviceSurfaceCapabilities(gpu, surface, &surfaceCapabilities))
 	if err != nil {
@@ -117,15 +117,15 @@ func newSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, w
 	return swap, nil
 }
 
-func (s *VulkanSwapchainInfo) DefaultSwapchain() vk.Swapchain {
+func (s *Swapchain) DefaultSwapchain() vk.Swapchain {
 	return s.Swapchains[0]
 }
 
-func (s *VulkanSwapchainInfo) DefaultSwapchainLen() uint32 {
+func (s *Swapchain) DefaultSwapchainLen() uint32 {
 	return s.SwapchainLen[0]
 }
 
-func (s *VulkanSwapchainInfo) CreateFramebuffers(renderPass vk.RenderPass, depthView vk.ImageView) error {
+func (s *Swapchain) CreateFramebuffers(renderPass vk.RenderPass, depthView vk.ImageView) error {
 	// Phase 1: vk.GetSwapchainImages
 
 	var swapchainImagesCount uint32
@@ -196,7 +196,7 @@ func (s *VulkanSwapchainInfo) CreateFramebuffers(renderPass vk.RenderPass, depth
 	return nil
 }
 
-func (s *VulkanSwapchainInfo) getSwapchainImages() []vk.Image {
+func (s *Swapchain) getSwapchainImages() []vk.Image {
 	if s.swapchainImages == nil {
 		var count uint32
 		vk.GetSwapchainImages(s.Device, s.DefaultSwapchain(), &count, nil)
@@ -209,7 +209,7 @@ func (s *VulkanSwapchainInfo) getSwapchainImages() []vk.Image {
 // CmdCopyToSwapchain records commands to copy a storage image to a swapchain image.
 // It transitions the swapchain image to TransferDst, the source image from General to TransferSrc,
 // performs the copy, then transitions back (swapchain to PresentSrc, source to General).
-func (s *VulkanSwapchainInfo) CmdCopyToSwapchain(cmd vk.CommandBuffer, srcImage vk.Image, imageIndex uint32) {
+func (s *Swapchain) CmdCopyToSwapchain(cmd vk.CommandBuffer, srcImage vk.Image, imageIndex uint32) {
 	swapImages := s.getSwapchainImages()
 	dstImage := swapImages[imageIndex]
 	subresourceRange := vk.ImageSubresourceRange{
@@ -263,7 +263,7 @@ func (s *VulkanSwapchainInfo) CmdCopyToSwapchain(cmd vk.CommandBuffer, srcImage 
 		}})
 }
 
-func (s *VulkanSwapchainInfo) Destroy() {
+func (s *Swapchain) Destroy() {
 	for i := uint32(0); i < s.DefaultSwapchainLen(); i++ {
 		if i < uint32(len(s.Framebuffers)) {
 			vk.DestroyFramebuffer(s.Device, s.Framebuffers[i], nil)

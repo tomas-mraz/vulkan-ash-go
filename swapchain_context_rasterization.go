@@ -94,7 +94,7 @@ func rasterizationRecreateFunc(
 	pipeline *PipelineRasterization,
 	cfg RasterizationRecreateConfig,
 ) SwapchainRecreateFunc {
-	return func(swap *VulkanSwapchainInfo) error {
+	return func(swap *Swapchain) error {
 		log.Printf("Recreating rasterization resources: %dx%d", swap.DisplaySize.Width, swap.DisplaySize.Height)
 
 		rp, err := NewRasterPass(s.manager.Device, swap.DisplayFormat)
