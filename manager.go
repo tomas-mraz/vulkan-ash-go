@@ -12,12 +12,12 @@ import (
 var debug = false
 
 type Manager struct {
-	Device    vk.Device
-	Instance  vk.Instance
-	Surface   vk.Surface
-	GpuDevice vk.PhysicalDevice
-	Queue     vk.Queue
-	dbg       vk.DebugReportCallback
+	Device   vk.Device
+	Instance vk.Instance
+	Surface  vk.Surface
+	Gpu      vk.PhysicalDevice
+	Queue    vk.Queue
+	dbg      vk.DebugReportCallback
 }
 
 // DeviceOptions configures device creation for NewDeviceWithOptions.
@@ -113,8 +113,8 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 		aaa.Free()
 	}
 
-	manager.GpuDevice = gpuDevices[0] //FIXME select GPU device
-	existingExtensions = GetDeviceExtensions(manager.GpuDevice)
+	manager.Gpu = gpuDevices[0] //FIXME select GPU device
+	existingExtensions = GetDeviceExtensions(manager.Gpu)
 	slog.Debug(fmt.Sprintf("Device extensions: %v", existingExtensions))
 
 	// Phase 3: vk.CreateDevice with vk.DeviceCreateInfo (a logical device)
@@ -155,7 +155,7 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 		deviceCreateInfo.PEnabledFeatures = []vk.PhysicalDeviceFeatures{*opts.EnabledFeatures}
 	}
 	var device vk.Device // we choose the first GPU available for this device
-	err = vk.Error(vk.CreateDevice(manager.GpuDevice, &deviceCreateInfo, nil, &device))
+	err = vk.Error(vk.CreateDevice(manager.Gpu, &deviceCreateInfo, nil, &device))
 	if err != nil {
 		gpuDevices = nil
 		vk.DestroySurface(manager.Instance, manager.Surface, nil)
