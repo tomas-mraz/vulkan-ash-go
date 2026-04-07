@@ -479,11 +479,17 @@ Runs the wrapped function and exposes it through the common `Destroyer` interfac
 
 Adds an object implementing `Destroy()` to the internal cleanup list. The intended pattern is to call it immediately after successful resource creation.
 
+<a id="cleanup-setwaitidledevice"></a>
+### `(*Cleanup).SetWaitIdleDevice`
+`func (d *Cleanup) SetWaitIdleDevice(device vk.Device)`
+
+Registers a Vulkan device that should be idled via `vk.DeviceWaitIdle` before the cleanup list starts destroying resources.
+
 <a id="cleanup-destroy"></a>
 ### `(*Cleanup).Destroy`
 `func (d *Cleanup) Destroy()`
 
-Runs all registered destroyers in reverse order. That preserves the typical Vulkan teardown order.
+Optionally idles the configured Vulkan device and then runs all registered destroyers in reverse order. That preserves the typical Vulkan teardown order.
 
 <a id="loadshaderfrombytes"></a>
 ### `LoadShaderFromBytes`

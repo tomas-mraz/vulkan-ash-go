@@ -21,6 +21,9 @@ type Model struct {
 
 // VertexCount returns the number of vertices.
 func (m *Model) VertexCount() int {
+	if m == nil || m.FloatsPerVertex == 0 {
+		return 0
+	}
 	return len(m.Vertices) / m.FloatsPerVertex
 }
 
