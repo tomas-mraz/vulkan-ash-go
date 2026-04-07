@@ -14,16 +14,12 @@ type Destroyer interface {
 	Destroy()
 }
 
-// DestroyerFunc adapts a plain function to the Destroyer interface.
-//type DestroyerFunc func()
-
-// Destroy calls the wrapped function.
-//func (f DestroyerFunc) Destroy() { f() }
-
 func NewCleanup(manager *Manager) Cleanup {
-	return Cleanup{
+	cleanup := Cleanup{
 		manager: manager,
 	}
+	cleanup.Add(manager)
+	return cleanup
 }
 
 // Add registers a destroyable object. Objects run in reverse order on Destroy.
