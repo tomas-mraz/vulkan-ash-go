@@ -46,5 +46,4 @@ func (m *GLTFModel) Destroy() {
 		m.Textures[i].Destroy()
 	}
 	m.GeometryBuffer.Destroy()
-	m.BLAS.Destroy()
 }
