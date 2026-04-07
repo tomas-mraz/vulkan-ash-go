@@ -146,6 +146,123 @@ func (s *SwapchainContext) Recreate(windowSize vk.Extent2D, recreateFn Swapchain
 	return nil
 }
 
+// BeginFrame resets and begins the command buffer for the given swapchain image.
+// Use this for raytracing or other non-render-pass workflows.
+// For rasterization with a render pass, use BeginRenderPass instead.
+func (s *SwapchainContext) BeginFrame(imageIndex uint32, cmdCtx *CommandContext) (vk.CommandBuffer, error) {
+	if s == nil {
+		var zero vk.CommandBuffer
+		return zero, fmt.Errorf("swapchain context is nil")
+	}
+
+	cmdBuffers := cmdCtx.GetCmdBuffers()
+	if int(imageIndex) >= len(cmdBuffers) {
+		var zero vk.CommandBuffer
+		return zero, fmt.Errorf("command buffer index %d out of range %d", imageIndex, len(cmdBuffers))
+	}
+
+	cmd := cmdBuffers[imageIndex]
+	if err := vk.Error(vk.ResetCommandBuffer(cmd, 0)); err != nil {
+		var zero vk.CommandBuffer
+		return zero, fmt.Errorf("ResetCommandBuffer: %w", err)
+	}
+	if err := vk.Error(vk.BeginCommandBuffer(cmd, &vk.CommandBufferBeginInfo{
+		SType: vk.StructureTypeCommandBufferBeginInfo,
+	})); err != nil {
+		var zero vk.CommandBuffer
+		return zero, fmt.Errorf("BeginCommandBuffer: %w", err)
+	}
+	return cmd, nil
+}
+
+// EndFrame finalizes command buffer recording.
+// Use this for raytracing or other non-render-pass workflows.
+// For rasterization with a render pass, use EndRenderPass instead.
+func (s *SwapchainContext) EndFrame(cmd vk.CommandBuffer) error {
+	if err := vk.Error(vk.EndCommandBuffer(cmd)); err != nil {
+		return fmt.Errorf("EndCommandBuffer: %w", err)
+	}
+	return nil
+}
+
+// SubmitRender submits the recorded command buffer and waits for the fence.
+func (s *SwapchainContext) SubmitRender(cmd vk.CommandBuffer, fence vk.Fence, waitSemaphores []vk.Semaphore) error {
+	if s == nil {
+		return fmt.Errorf("swapchain context is nil")
+	}
+	fences := []vk.Fence{fence}
+	var waitStages []vk.PipelineStageFlags
+	if len(waitSemaphores) > 0 {
+		waitStages = []vk.PipelineStageFlags{vk.PipelineStageFlags(vk.PipelineStageColorAttachmentOutputBit)}
+	}
+	vk.ResetFences(s.manager.Device, 1, fences)
+	if err := vk.Error(vk.QueueSubmit(s.manager.Queue, 1, []vk.SubmitInfo{{
+		SType:              vk.StructureTypeSubmitInfo,
+		WaitSemaphoreCount: uint32(len(waitSemaphores)),
+		PWaitSemaphores:    waitSemaphores,
+		PWaitDstStageMask:  waitStages,
+		CommandBufferCount: 1,
+		PCommandBuffers:    []vk.CommandBuffer{cmd},
+	}}, fence)); err != nil {
+		return fmt.Errorf("QueueSubmit: %w", err)
+	}
+
+	const timeoutNano = 10 * 1000 * 1000 * 1000
+	if err := vk.Error(vk.WaitForFences(s.manager.Device, 1, fences, vk.True, timeoutNano)); err != nil {
+		return fmt.Errorf("WaitForFences: %w", err)
+	}
+	return nil
+}
+
+// AcquireNextImageAutoRecreate acquires the next image and automatically recreates
+// the swapchain via the provided callback when needed.
+func (s *SwapchainContext) AcquireNextImageAutoRecreate(
+	windowSize vk.Extent2D,
+	semaphore vk.Semaphore,
+	recreateFn SwapchainRecreateFunc,
+) (imageIndex uint32, ok bool, err error) {
+	if s == nil {
+		return 0, false, fmt.Errorf("swapchain context is nil")
+	}
+	if s.NeedsRecreate() {
+		if err := s.Recreate(windowSize, recreateFn); err != nil {
+			return 0, false, err
+		}
+	}
+
+	imageIndex, acquired, err := s.AcquireNextImage(vk.MaxUint64, semaphore, vk.NullFence)
+	if err != nil {
+		return 0, false, fmt.Errorf("AcquireNextImage: %w", err)
+	}
+	if !acquired {
+		if err := s.Recreate(windowSize, recreateFn); err != nil {
+			return 0, false, err
+		}
+		return 0, false, nil
+	}
+	return imageIndex, true, nil
+}
+
+// PresentImageAutoRecreate presents the frame and automatically recreates
+// the swapchain via the provided callback when needed.
+func (s *SwapchainContext) PresentImageAutoRecreate(
+	windowSize vk.Extent2D,
+	imageIndex uint32,
+	recreateFn SwapchainRecreateFunc,
+) error {
+	if s == nil {
+		return fmt.Errorf("swapchain context is nil")
+	}
+	presented, err := s.PresentImage(imageIndex, nil)
+	if err != nil {
+		return fmt.Errorf("QueuePresent: %w", err)
+	}
+	if !presented || s.NeedsRecreate() {
+		return s.Recreate(windowSize, recreateFn)
+	}
+	return nil
+}
+
 func classifySwapchainResult(result vk.Result) (ok bool, recreate bool, err error) {
 	switch result {
 	case vk.Success:
