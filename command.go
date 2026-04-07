@@ -122,6 +122,21 @@ func (c *CommandContext) EndOneTime(queue vk.Queue, cmd vk.CommandBuffer) error 
 	return nil
 }
 
+// BindRasterPipeline binds a rasterization pipeline to the command buffer.
+func (c *CommandContext) BindRasterPipeline(cmd vk.CommandBuffer, pipeline PipelineRasterization) {
+	vk.CmdBindPipeline(cmd, vk.PipelineBindPointGraphics, pipeline.GetPipeline())
+}
+
+// BindVertexBuffers binds vertex buffers to the command buffer.
+func (c *CommandContext) BindVertexBuffers(cmd vk.CommandBuffer, firstBinding uint32, buffers []vk.Buffer, offsets []vk.DeviceSize) {
+	vk.CmdBindVertexBuffers(cmd, firstBinding, uint32(len(buffers)), buffers, offsets)
+}
+
+// Draw records a non-indexed draw call.
+func (c *CommandContext) Draw(cmd vk.CommandBuffer, vertexCount, instanceCount, firstVertex, firstInstance uint32) {
+	vk.CmdDraw(cmd, vertexCount, instanceCount, firstVertex, firstInstance)
+}
+
 // Destroy frees reusable command buffers and destroys the command pool.
 func (c *CommandContext) Destroy() {
 	if c == nil {
