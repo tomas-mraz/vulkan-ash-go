@@ -317,11 +317,14 @@ func selectPhysicalDevice(gpus []vk.PhysicalDevice) vk.PhysicalDevice {
 		case vk.ApiVersion11:
 			score += 100
 		}
+		switch gpuType {
+		case vk.PhysicalDeviceTypeDiscreteGpu:
+			score += 200 // more powerful
+		case vk.PhysicalDeviceTypeIntegratedGpu:
+			score += 100 // better than other possibilities
+		}
 		if i == 0 {
 			score += 100 // selected by vulkan as best
-		}
-		if gpuType == vk.PhysicalDeviceTypeDiscreteGpu {
-			score += 100 // more powerful
 		}
 		if runtime.GOOS == MACOS && strings.Contains(strings.ToLower(name), "kosmickrisp") {
 			score += 500 // preferred before MoltenVK
