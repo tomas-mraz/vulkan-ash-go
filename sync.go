@@ -6,16 +6,16 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// VulkanSyncInfo manages a fence and semaphore pair for frame synchronization.
-type VulkanSyncInfo struct {
+// SyncInfo manages a fence and semaphore pair for frame synchronization.
+type SyncInfo struct {
 	device    vk.Device
 	Fence     vk.Fence
 	Semaphore vk.Semaphore
 }
 
 // NewSyncObjects creates a fence and a semaphore for frame synchronization.
-func NewSyncObjects(device vk.Device) (VulkanSyncInfo, error) {
-	var s VulkanSyncInfo
+func NewSyncObjects(device vk.Device) (SyncInfo, error) {
+	var s SyncInfo
 	s.device = device
 	if err := vk.Error(vk.CreateFence(device, &vk.FenceCreateInfo{
 		SType: vk.StructureTypeFenceCreateInfo,
@@ -32,7 +32,7 @@ func NewSyncObjects(device vk.Device) (VulkanSyncInfo, error) {
 }
 
 // Destroy releases the fence and semaphore.
-func (s *VulkanSyncInfo) Destroy() {
+func (s *SyncInfo) Destroy() {
 	if s == nil {
 		return
 	}
