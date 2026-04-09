@@ -21,9 +21,9 @@ type gltfGeometryNode struct {
 // LoadGLTFModel loads a glTF scene into GPU buffers, creates the geometry SSBO,
 // and builds a single BLAS containing one geometry per primitive.
 func LoadGLTFModel(rt *RaytracingContext, path string) (GLTFModel, error) {
-	dev := rt.device
-	gpu := rt.gpu
-	queue := rt.queue
+	dev := rt.manager.Device
+	gpu := rt.manager.Gpu
+	queue := rt.manager.Queue
 	cmdCtx := rt.cmdCtx
 	doc, err := gltf.Open(path)
 	if err != nil {
@@ -196,7 +196,7 @@ func buildGLTFModelBLAS(rt *RaytracingContext, prims []GLTFPrimitive) (Accelerat
 		transformMatrices[i] = prims[i].Transform
 	}
 
-	transformBuf, err := NewBufferHostVisible(rt.device, rt.gpu, transformMatrices, true,
+	transformBuf, err := NewBufferHostVisible(rt.manager.Device, rt.manager.Gpu, transformMatrices, true,
 		vk.BufferUsageFlags(vk.BufferUsageShaderDeviceAddressBit|vk.BufferUsageAccelerationStructureBuildInputReadOnlyBit))
 	if err != nil {
 		return AccelerationStructure{}, fmt.Errorf("create transform buffer: %w", err)

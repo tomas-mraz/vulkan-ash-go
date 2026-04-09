@@ -2,23 +2,121 @@
 
 Public API of the `ash` package. The overview below is split into exported structs and exported functions/methods; `Destroy` functions are intentionally omitted from the second table.
 
+## Rasterization object overview
+
+```mermaid
+graph TD
+    M["<b>Manager</b><br/>Instance, Device<br/>Surface, GPU, Queue"]
+
+    SW["<b>Swapchain</b><br/>Swapchain, ImageViews<br/>Framebuffers"]
+    RP["<b>RasterizationPass</b><br/>RenderPass"]
+    PR["<b>PipelineRasterization</b><br/>Pipeline, Layout, Cache"]
+    CC["<b>CommandContext</b><br/>CommandPool<br/>CommandBuffers"]
+
+    DI["<b>VulkanDescriptorInfo</b><br/>Layout, Pool, Sets"]
+    UB["<b>UniformBuffers</b><br/>per-frame Buffers"]
+    IR["<b>ImageResource</b><br/>Image, View, Sampler"]
+    IB["<b>VulkanIndexBufferInfo</b><br/>IndexBuffer, Count"]
+    SY["<b>SyncInfo</b><br/>Fence, Semaphore"]
+    M -->|"*Manager"| SW
+    M -->|"device, format"| RP
+    M -->|"device, queueFamily"| CC
+    M -->|"device"| SY
+    RP -->|"renderPass + depthView"| SW
+    SW -->|"displaySize"| PR
+    RP -->|"renderPass"| PR
+    DI -->|"descriptorSetLayouts"| PR
+    UB -->|"binding"| DI
+    IR -->|"binding"| DI
+
+    style M fill:#4a90d9,color:#fff
+    style SW fill:#50b87a,color:#fff
+    style RP fill:#50b87a,color:#fff
+    style PR fill:#e8a838,color:#fff
+    style CC fill:#9b6ed0,color:#fff
+    style DI fill:#e06060,color:#fff
+    style UB fill:#e88888,color:#fff
+    style IR fill:#e88888,color:#fff
+    style IB fill:#e88888,color:#fff
+    style SY fill:#9b6ed0,color:#fff
+```
+
+## Raytracing object overview
+
+```mermaid
+graph TD
+    M["<b>Manager</b><br/>Instance, Device<br/>Surface, GPU, Queue"]
+    CC["<b>CommandContext</b><br/>CommandPool<br/>CommandBuffers"]
+    RC["<b>RaytracingContext</b><br/>*Manager, cmdCtx"]
+
+    BLAS["<b>AccelerationStructure</b><br/>BLAS + Buffer"]
+    TLAS["<b>AccelerationStructure</b><br/>TLAS + Buffer"]
+    TI["<b>TLASInstance</b><br/>Transform, Flags, BLAS ref"]
+
+    PT["<b>PipelineRaytracing</b><br/>Pipeline, Layout"]
+    SBT["<b>ShaderBindingTable</b><br/>Buffer, Raygen/Miss/Hit regions"]
+
+    GM["<b>GLTFModel</b><br/>Primitives, Textures<br/>GeometryBuffer, BLAS"]
+    GP["<b>GLTFPrimitive</b><br/>VertexBuffer, IndexBuffer<br/>Transform, TextureIndex"]
+
+    DI["<b>VulkanDescriptorInfo</b><br/>Layout, Pool, Sets"]
+    UB["<b>UniformBuffers</b><br/>per-frame Buffers"]
+    IR["<b>ImageResource</b><br/>Storage Image"]
+    SW["<b>Swapchain</b><br/>Swapchain, ImageViews<br/>Framebuffers"]
+    SY["<b>SyncInfo</b><br/>Fence, Semaphore"]
+
+    M -->|"*Manager"| RC
+    M -->|"device, queueFamily"| CC
+    M -->|"*Manager"| SW
+    M -->|"device"| SY
+    CC -->|"*CommandContext"| RC
+    RC -->|"builds"| BLAS
+    RC -->|"builds"| TLAS
+    TI -->|"references"| BLAS
+    TI -->|"instances"| TLAS
+    RC -->|"loads"| GM
+    GP -->|"primitives"| GM
+    GM ---|"owns BLAS"| BLAS
+    IR -->|"binding"| DI
+    UB -->|"binding"| DI
+    TLAS -->|"binding"| DI
+    DI -->|"descriptorSetLayouts"| PT
+    PT -->|"pipeline"| SBT
+
+    style M fill:#4a90d9,color:#fff
+    style CC fill:#9b6ed0,color:#fff
+    style RC fill:#d97a4a,color:#fff
+    style BLAS fill:#50b87a,color:#fff
+    style TLAS fill:#50b87a,color:#fff
+    style TI fill:#78c898,color:#fff
+    style PT fill:#e8a838,color:#fff
+    style SBT fill:#e8c838,color:#fff
+    style GM fill:#d97a4a,color:#fff
+    style GP fill:#e09a6a,color:#fff
+    style DI fill:#e06060,color:#fff
+    style UB fill:#e88888,color:#fff
+    style IR fill:#e88888,color:#fff
+    style SW fill:#50b87a,color:#fff
+    style SY fill:#9b6ed0,color:#fff
+```
+
 # Structures
 
 | Structure                                                | Type          | Resource      | Description                                                      |
 |----------------------------------------------------------|---------------|---------------|------------------------------------------------------------------|
-| [`Vulkan`](#struct-vulkan)                               | common        | resource      | Main Vulkan context with instance, device, surface, and queue.   |
+| [`Manager`](#struct-manager)                             | common        | resource      | Main Vulkan context with instance, device, surface, and queue.   |
 | [`DeviceOptions`](#struct-deviceoptions)                 | common        |               | Options for advanced Vulkan device creation.                     |
 | [`Cleanup`](#struct-cleanup)                             | common        |               | Simple LIFO registry for cleanup steps.                          |
 | [`CommandContext`](#commandcontext)                      | common        |               | Command pool and a set of reusable command buffers.              |
-| [`VulkanSwapchainInfo`](#struct-vulkanswapchaininfo)     | common        |               | Metadata and handles for the swapchain and framebuffers.         |
+| [`Swapchain`](#struct-swapchain)     | common        |               | Metadata and handles for the swapchain and framebuffers.         |
 | [`VulkanBufferInfo`](#struct-vulkanbufferinfo)           | common        |               | Simple vertex buffer helper.                                     |
 | [`BufferResourceOptions`](#struct-bufferresourceoptions) | common        |               | Configuration for a generic buffer resource.                     |
 | [`VulkanBufferResource`](#struct-vulkanbufferresource)   | common        |               | Generic representation of a Vulkan buffer and its memory.        |
 | [`VulkanIndexBufferInfo`](#struct-vulkanindexbufferinfo) | common        |               | Helper for an index buffer and its index count.                  |
-| [`VulkanImageResource`](#struct-vulkanimageresource)     | common        |               | Generic image resource with image, view, sampler, and memory.    |
-| [`VulkanUniformBuffers`](#struct-vulkanuniformbuffers)   | common        | resource      | Set of uniform buffers, typically one per frame.                 |
+| [`ImageResource`](#struct-imageresource)     | common        |               | Generic image resource with image, view, sampler, and memory.    |
+| [`UniformBuffers`](#struct-uniformbuffers)   | common        | resource      | Set of uniform buffers, typically one per frame.                 |
 | [`VulkanDescriptorInfo`](#struct-vulkandescriptorinfo)   | common        |               | Descriptor layout, pool, and allocated sets.                     |
-| [`VulkanSyncInfo`](#struct-vulkansyncinfo)               | common        |               | Fence and semaphore for synchronization.                         |
+| [`SyncInfo`](#struct-syncinfo)               | common        |               | Fence and semaphore for synchronization.                         |
 | [`Model`](#struct-model)                                 | common        |               | Untextured glTF model in an interleaved vertex layout.           |
 | [`TexturedModel`](#struct-texturedmodel)                 | common        |               | Textured model including an RGBA base color texture.             |
 | [`Vec2`](#struct-vec2)                                   | common        |               | 2D vector type for math utilities.                               |
@@ -188,8 +286,8 @@ Frees the buffer that stores the shader binding table.
 
 ## Structures In Detail
 
-<a id="struct-vulkan"></a>
-### `Vulkan`
+<a id="struct-manager"></a>
+### `Manager`
 
 Main container for the library's basic Vulkan handles: `Instance`, `Device`, `Surface`, the physical GPU, and the queue.
 
@@ -208,8 +306,8 @@ Simple LIFO registry of cleanup objects implementing `Destroy()`.
 
 Manages a command pool and a set of reusable command buffers plus helpers for one-time command buffers.
 
-<a id="struct-vulkanswapchaininfo"></a>
-### `VulkanSwapchainInfo`
+<a id="struct-swapchain"></a>
+### `Swapchain`
 
 Carries swapchain handles, image counts, chosen format, dimensions, and created framebuffers.
 
@@ -233,13 +331,13 @@ General representation of a Vulkan buffer that owns `vk.Buffer`, `vk.DeviceMemor
 
 Wrapper over an index buffer, its memory, and its index count.
 
-<a id="struct-vulkanimageresource"></a>
-### `VulkanImageResource`
+<a id="struct-imageresource"></a>
+### `ImageResource`
 
 General image resource including `vk.Image`, `vk.ImageView`, `vk.Sampler`, memory, and format.
 
-<a id="struct-vulkanuniformbuffers"></a>
-### `VulkanUniformBuffers`
+<a id="struct-uniformbuffers"></a>
+### `UniformBuffers`
 
 Manages a set of uniform buffers of equal size, usually one per frame or per swapchain image.
 
@@ -327,8 +425,8 @@ desc, err := ash.NewDescriptorSets(dev, swapchainLen, []ash.DescriptorBinding{
 
 ---
 
-<a id="struct-vulkansyncinfo"></a>
-### `VulkanSyncInfo`
+<a id="struct-syncinfo"></a>
+### `SyncInfo`
 
 Minimal synchronization bundle with one fence and one semaphore.
 
@@ -503,31 +601,31 @@ Creates a `vk.ShaderModule` directly from raw SPIR-V bytes. The caller remains r
 ## NewSwapchainInfo{}
 
 ### `NewSwapchain()`
-`func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D) (VulkanSwapchainInfo, error)`
+`func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D) (Swapchain, error)`
 
 Queries surface capabilities, selects a suitable format, and creates the swapchain. It also sets the resulting `DisplayFormat` and `DisplaySize`.
 
 <a id="swapchain-defaultswapchain"></a>
-### `(*VulkanSwapchainInfo).DefaultSwapchain`
-`func (s *VulkanSwapchainInfo) DefaultSwapchain() vk.Swapchain`
+### `(*Swapchain).DefaultSwapchain`
+`func (s *Swapchain) DefaultSwapchain() vk.Swapchain`
 
 Returns the first, and effectively the main, swapchain handle. The rest of the library works with this one by default.
 
 <a id="swapchain-defaultswapchainlen"></a>
-### `(*VulkanSwapchainInfo).DefaultSwapchainLen`
-`func (s *VulkanSwapchainInfo) DefaultSwapchainLen() uint32`
+### `(*Swapchain).DefaultSwapchainLen`
+`func (s *Swapchain) DefaultSwapchainLen() uint32`
 
 Returns the number of images in the primary swapchain. Typically used for framebuffer counts or per-frame resources.
 
 <a id="swapchain-createframebuffers"></a>
-### `(*VulkanSwapchainInfo).CreateFramebuffers`
-`func (s *VulkanSwapchainInfo) CreateFramebuffers(renderPass vk.RenderPass, depthView vk.ImageView) error`
+### `(*Swapchain).CreateFramebuffers`
+`func (s *Swapchain) CreateFramebuffers(renderPass vk.RenderPass, depthView vk.ImageView) error`
 
 Creates an image view for each swapchain image and then framebuffers for the given render pass. If `depthView` is non-null, it is attached as the second attachment.
 
 <a id="swapchain-destroy"></a>
-### `(*VulkanSwapchainInfo).Destroy`
-`func (s *VulkanSwapchainInfo) Destroy()`
+### `(*Swapchain).Destroy`
+`func (s *Swapchain) Destroy()`
 
 Cleans up framebuffers, image views, and all swapchain handles stored in the struct. It does not destroy the `vk.Surface` itself.
 
@@ -622,62 +720,62 @@ Returns the number of indices stored in the buffer. This value can be used direc
 Frees the device memory and destroys the index buffer. It does not perform GPU synchronization.
 
 <a id="vulkanimageresource-getimage"></a>
-### `(*VulkanImageResource).GetImage`
-`func (r *VulkanImageResource) GetImage() vk.Image`
+### `(*ImageResource).GetImage`
+`func (r *ImageResource) GetImage() vk.Image`
 
 Returns the low-level `vk.Image` handle. Useful when passing it directly to Vulkan structures and commands.
 
 <a id="vulkanimageresource-getview"></a>
-### `(*VulkanImageResource).GetView`
-`func (r *VulkanImageResource) GetView() vk.ImageView`
+### `(*ImageResource).GetView`
+`func (r *ImageResource) GetView() vk.ImageView`
 
 Returns the `vk.ImageView` handle associated with the resource. Commonly used in framebuffers and descriptor sets.
 
 <a id="vulkanimageresource-getsampler"></a>
-### `(*VulkanImageResource).GetSampler`
-`func (r *VulkanImageResource) GetSampler() vk.Sampler`
+### `(*ImageResource).GetSampler`
+`func (r *ImageResource) GetSampler() vk.Sampler`
 
 Returns the resource's `vk.Sampler` handle. If no sampler exists, the method returns a null handle.
 
 <a id="vulkanimageresource-getformat"></a>
-### `(*VulkanImageResource).GetFormat`
-`func (r *VulkanImageResource) GetFormat() vk.Format`
+### `(*ImageResource).GetFormat`
+`func (r *ImageResource) GetFormat() vk.Format`
 
 Returns the Vulkan image format. This is a quick way to access metadata without reading the struct field directly.
 
 <a id="newimageresourcefromhandles"></a>
 ### `NewImageResourceFromHandles`
-`func NewImageResourceFromHandles(device vk.Device, image vk.Image, memory vk.DeviceMemory, view vk.ImageView, sampler vk.Sampler, format vk.Format) VulkanImageResource`
+`func NewImageResourceFromHandles(device vk.Device, image vk.Image, memory vk.DeviceMemory, view vk.ImageView, sampler vk.Sampler, format vk.Format) ImageResource`
 
-Wraps already created Vulkan handles into `VulkanImageResource`. Intended for cases where the image is created outside of the library helpers.
+Wraps already created Vulkan handles into `ImageResource`. Intended for cases where the image is created outside of the library helpers.
 
 <a id="vulkanimageresource-destroy"></a>
-### `(*VulkanImageResource).Destroy`
-`func (r *VulkanImageResource) Destroy()`
+### `(*ImageResource).Destroy`
+`func (r *ImageResource) Destroy()`
 
 Destroys the sampler, image view, device memory, and image in the correct order. It also works safely on a partially initialized struct.
 
 <a id="newimagetexture"></a>
 ### `NewImageTexture`
-`func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint32, rgbaPixels []byte) (VulkanImageResource, error)`
+`func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint32, rgbaPixels []byte) (ImageResource, error)`
 
 Creates a linearly tiled 2D texture from RGBA pixels and adds a simple nearest sampler. After creation, the image may still need to be transitioned to a shader-read layout.
 
 <a id="newimagetexturewithsampler"></a>
 ### `NewImageTextureWithSampler`
-`func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, width, height uint32, rgbaPixels []byte, samplerInfo vk.SamplerCreateInfo) (VulkanImageResource, error)`
+`func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, width, height uint32, rgbaPixels []byte, samplerInfo vk.SamplerCreateInfo) (ImageResource, error)`
 
 Uploads a texture through a staging buffer into an optimally tiled sampled image and creates a sampler from the provided `samplerInfo`. The function performs the required layout transitions during upload.
 
 <a id="newimagestorage"></a>
 ### `NewImageStorage`
-`func NewImageStorage(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdPool vk.CommandPool, width, height uint32, format vk.Format) (VulkanImageResource, error)`
+`func NewImageStorage(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdPool vk.CommandPool, width, height uint32, format vk.Format) (ImageResource, error)`
 
 Creates a storage image in device-local memory and performs a one-time transition to the `General` layout. Suitable for compute outputs or ray generation targets.
 
 <a id="newimagedepth"></a>
 ### `NewImageDepth`
-`func NewImageDepth(device vk.Device, gpu vk.PhysicalDevice, width, height uint32, format vk.Format) (VulkanImageResource, error)`
+`func NewImageDepth(device vk.Device, gpu vk.PhysicalDevice, width, height uint32, format vk.Format) (ImageResource, error)`
 
 Creates a depth attachment image in device-local memory together with its image view. It does not perform a layout transition because that is typically handled by the render pass.
 
@@ -689,37 +787,37 @@ Performs several common layout transition scenarios using a one-time command buf
 
 <a id="newuniformbuffers"></a>
 ### `NewUniformBuffers`
-`func NewUniformBuffers(device vk.Device, gpu vk.PhysicalDevice, count uint32, dataSize int) (VulkanUniformBuffers, error)`
+`func NewUniformBuffers(device vk.Device, gpu vk.PhysicalDevice, count uint32, dataSize int) (UniformBuffers, error)`
 
 Creates `count` uniform buffers of the same size, typically one per swapchain image. All of them use host-visible and host-coherent memory.
 
 <a id="vulkanuniformbuffers-update"></a>
-### `(*VulkanUniformBuffers).Update`
-`func (u *VulkanUniformBuffers) Update(index uint32, data []byte)`
+### `(*UniformBuffers).Update`
+`func (u *UniformBuffers) Update(index uint32, data []byte)`
 
 Writes new data into the uniform buffer at the given index. The function assumes a valid index and data size and does not return an error.
 
 <a id="vulkanuniformbuffers-getbuffer"></a>
-### `(*VulkanUniformBuffers).GetBuffer`
-`func (u *VulkanUniformBuffers) GetBuffer(index uint32) vk.Buffer`
+### `(*UniformBuffers).GetBuffer`
+`func (u *UniformBuffers) GetBuffer(index uint32) vk.Buffer`
 
 Returns a specific uniform buffer by index. Mainly used when filling descriptor sets.
 
 <a id="vulkanuniformbuffers-getbuffers"></a>
-### `(*VulkanUniformBuffers).GetBuffers`
-`func (u *VulkanUniformBuffers) GetBuffers() []vk.Buffer`
+### `(*UniformBuffers).GetBuffers`
+`func (u *UniformBuffers) GetBuffers() []vk.Buffer`
 
 Returns all created uniform buffers at once. Convenient for batch descriptor initialization.
 
 <a id="vulkanuniformbuffers-getsize"></a>
-### `(*VulkanUniformBuffers).GetSize`
-`func (u *VulkanUniformBuffers) GetSize() int`
+### `(*UniformBuffers).GetSize`
+`func (u *UniformBuffers) GetSize() int`
 
 Returns the size of one uniform buffer in bytes. It does not return the combined size of all allocations.
 
 <a id="vulkanuniformbuffers-destroy"></a>
-### `(*VulkanUniformBuffers).Destroy`
-`func (u *VulkanUniformBuffers) Destroy()`
+### `(*UniformBuffers).Destroy`
+`func (u *UniformBuffers) Destroy()`
 
 Frees all managed buffers and their device memory. This is the full teardown path for the whole resource set.
 
@@ -743,15 +841,15 @@ Destroys the descriptor pool and descriptor set layout. The sets themselves are 
 
 <a id="newsyncobjects"></a>
 ### `NewSyncObjects`
-`func NewSyncObjects(device vk.Device) (VulkanSyncInfo, error)`
+`func NewSyncObjects(device vk.Device) (SyncInfo, error)`
 
 Creates a simple pair of `Fence` and `Semaphore` objects for frame synchronization. This is a minimal helper for a basic render loop.
 
 <a id="vulkansyncinfo-destroy"></a>
-### `(*VulkanSyncInfo).Destroy`
-`func (s *VulkanSyncInfo) Destroy()`
+### `(*SyncInfo).Destroy`
+`func (s *SyncInfo) Destroy()`
 
-Releases the fence and semaphore stored in `VulkanSyncInfo`. The object cannot be reused after destruction.
+Releases the fence and semaphore stored in `SyncInfo`. The object cannot be reused after destruction.
 
 <a id="model-vertexcount"></a>
 ### `(*Model).VertexCount`
@@ -1318,7 +1416,7 @@ Returns a copy of the device extensions required by the ray tracing helpers in t
 
 <a id="newraytracingcontext"></a>
 ### `NewRaytracingContext`
-`func NewRaytracingContext(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext) RaytracingContext`
+`func NewRaytracingContext(manager *Manager, cmdCtx *CommandContext) RaytracingContext`
 
 Creates a lightweight orchestration object for ray tracing helper methods. It only groups existing dependencies and does not allocate, own, or destroy any Vulkan resources.
 
@@ -1336,13 +1434,13 @@ Decodes an image from a glTF document into tightly packed RGBA pixels and also r
 
 <a id="loadgltftextures"></a>
 ### `LoadGLTFTextures`
-`func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, doc *gltf.Document, baseDir string) ([]VulkanImageResource, error)`
+`func LoadGLTFTextures(dev vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext, doc *gltf.Document, baseDir string) ([]ImageResource, error)`
 
 Uploads all textures from a glTF document into Vulkan image resources. Index `0` always contains a 1x1 white fallback texture for simpler shader indexing.
 
 <a id="newgltfmodel"></a>
 ### `NewGLTFModel`
-`func NewGLTFModel(device vk.Device, primitives []GLTFPrimitive, geometryBuffer VulkanBufferResource, blas AccelerationStructure, textures []VulkanImageResource) GLTFModel`
+`func NewGLTFModel(device vk.Device, primitives []GLTFPrimitive, geometryBuffer VulkanBufferResource, blas AccelerationStructure, textures []ImageResource) GLTFModel`
 
 Builds a `GLTFModel` from already created GPU resources without doing additional work. This is a pure value constructor.
 

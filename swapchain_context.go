@@ -129,7 +129,7 @@ func (s *SwapchainContext) Recreate(windowSize vk.Extent2D, recreateFn Swapchain
 
 	oldSwap := *s.swapchain
 
-	swap, err := newSwapchain(s.manager.Device, s.manager.Gpu, s.manager.Surface, windowSize, oldSwap.DefaultSwapchain())
+	swap, err := newSwapchain(s.manager, windowSize, oldSwap.DefaultSwapchain())
 	if err != nil {
 		return err
 	}

@@ -8,7 +8,7 @@ import (
 )
 
 type Swapchain struct {
-	Device vk.Device
+	manager *Manager
 
 	Swapchains   []vk.Swapchain
 	SwapchainLen []uint32
@@ -22,11 +22,11 @@ type Swapchain struct {
 	swapchainImages []vk.Image // cached for CmdCopyToSwapchain
 }
 
-func NewSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D) (Swapchain, error) {
-	return newSwapchain(device, gpu, surface, windowSize, vk.NullSwapchain)
+func NewSwapchain(manager *Manager, windowSize vk.Extent2D) (Swapchain, error) {
+	return newSwapchain(manager, windowSize, vk.NullSwapchain)
 }
 
-func newSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, windowSize vk.Extent2D, oldSwapchain vk.Swapchain) (Swapchain, error) {
+func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swapchain) (Swapchain, error) {
 	//gpu := v.gpuDevices[0]
 
 	// Phase 1: vk.GetPhysicalDeviceSurfaceCapabilities
@@ -34,15 +34,15 @@ func newSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, w
 
 	var swap Swapchain
 	var surfaceCapabilities vk.SurfaceCapabilities
-	err := vk.Error(vk.GetPhysicalDeviceSurfaceCapabilities(gpu, surface, &surfaceCapabilities))
+	err := vk.Error(vk.GetPhysicalDeviceSurfaceCapabilities(manager.Gpu, manager.Surface, &surfaceCapabilities))
 	if err != nil {
 		err = fmt.Errorf("vk.GetPhysicalDeviceSurfaceCapabilities failed with %s", err)
 		return swap, err
 	}
 	var formatCount uint32
-	vk.GetPhysicalDeviceSurfaceFormats(gpu, surface, &formatCount, nil)
+	vk.GetPhysicalDeviceSurfaceFormats(manager.Gpu, manager.Surface, &formatCount, nil)
 	formats := make([]vk.SurfaceFormat, formatCount)
-	vk.GetPhysicalDeviceSurfaceFormats(gpu, surface, &formatCount, formats)
+	vk.GetPhysicalDeviceSurfaceFormats(manager.Gpu, manager.Surface, &formatCount, formats)
 
 	slog.Debug(fmt.Sprintf("got %d physical device surface formats", formatCount))
 
@@ -82,7 +82,7 @@ func newSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, w
 
 	swapchainCreateInfo := vk.SwapchainCreateInfo{
 		SType:            vk.StructureTypeSwapchainCreateInfo,
-		Surface:          surface,
+		Surface:          manager.Surface,
 		MinImageCount:    surfaceCapabilities.MinImageCount,
 		ImageFormat:      formats[chosenFormat].Format,
 		ImageColorSpace:  formats[chosenFormat].ColorSpace,
@@ -97,7 +97,7 @@ func newSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, w
 		Clipped:          vk.False,
 	}
 	var swapchain vk.Swapchain
-	err = vk.Error(vk.CreateSwapchain(device, &swapchainCreateInfo, nil, &swapchain))
+	err = vk.Error(vk.CreateSwapchain(manager.Device, &swapchainCreateInfo, nil, &swapchain))
 	if err != nil {
 		err = fmt.Errorf("vk.CreateSwapchain failed with %s", err)
 		return swap, err
@@ -105,7 +105,7 @@ func newSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, w
 	swap.Swapchains = []vk.Swapchain{swapchain}
 	swap.SwapchainLen = make([]uint32, 1)
 
-	err = vk.Error(vk.GetSwapchainImages(device, swap.DefaultSwapchain(), &(swap.SwapchainLen[0]), nil))
+	err = vk.Error(vk.GetSwapchainImages(manager.Device, swap.DefaultSwapchain(), &(swap.SwapchainLen[0]), nil))
 	if err != nil {
 		err = fmt.Errorf("vk.GetSwapchainImages failed with %s", err)
 		return swap, err
@@ -113,7 +113,7 @@ func newSwapchain(device vk.Device, gpu vk.PhysicalDevice, surface vk.Surface, w
 	for i := range formats {
 		formats[i].Free()
 	}
-	swap.Device = device
+	swap.manager = manager
 	return swap, nil
 }
 
@@ -129,13 +129,13 @@ func (s *Swapchain) CreateFramebuffers(renderPass vk.RenderPass, depthView vk.Im
 	// Phase 1: vk.GetSwapchainImages
 
 	var swapchainImagesCount uint32
-	err := vk.Error(vk.GetSwapchainImages(s.Device, s.DefaultSwapchain(), &swapchainImagesCount, nil))
+	err := vk.Error(vk.GetSwapchainImages(s.manager.Device, s.DefaultSwapchain(), &swapchainImagesCount, nil))
 	if err != nil {
 		err = fmt.Errorf("vk.GetSwapchainImages failed with %s", err)
 		return err
 	}
 	swapchainImages := make([]vk.Image, swapchainImagesCount)
-	vk.GetSwapchainImages(s.Device, s.DefaultSwapchain(), &swapchainImagesCount, swapchainImages)
+	vk.GetSwapchainImages(s.manager.Device, s.DefaultSwapchain(), &swapchainImagesCount, swapchainImages)
 
 	// Phase 2: vk.CreateImageView
 	//			create image view for each swapchain image
@@ -159,7 +159,7 @@ func (s *Swapchain) CreateFramebuffers(renderPass vk.RenderPass, depthView vk.Im
 				LayerCount: 1,
 			},
 		}
-		err := vk.Error(vk.CreateImageView(s.Device, &viewCreateInfo, nil, &s.DisplayViews[i]))
+		err := vk.Error(vk.CreateImageView(s.manager.Device, &viewCreateInfo, nil, &s.DisplayViews[i]))
 		if err != nil {
 			err = fmt.Errorf("vk.CreateImageView failed with %s", err)
 			return err // bail out
@@ -187,7 +187,7 @@ func (s *Swapchain) CreateFramebuffers(renderPass vk.RenderPass, depthView vk.Im
 		if depthView != vk.NullImageView {
 			fbCreateInfo.AttachmentCount = 2
 		}
-		err := vk.Error(vk.CreateFramebuffer(s.Device, &fbCreateInfo, nil, &s.Framebuffers[i]))
+		err := vk.Error(vk.CreateFramebuffer(s.manager.Device, &fbCreateInfo, nil, &s.Framebuffers[i]))
 		if err != nil {
 			err = fmt.Errorf("vk.CreateFramebuffer failed with %s", err)
 			return err // bail out
@@ -199,9 +199,9 @@ func (s *Swapchain) CreateFramebuffers(renderPass vk.RenderPass, depthView vk.Im
 func (s *Swapchain) getSwapchainImages() []vk.Image {
 	if s.swapchainImages == nil {
 		var count uint32
-		vk.GetSwapchainImages(s.Device, s.DefaultSwapchain(), &count, nil)
+		vk.GetSwapchainImages(s.manager.Device, s.DefaultSwapchain(), &count, nil)
 		s.swapchainImages = make([]vk.Image, count)
-		vk.GetSwapchainImages(s.Device, s.DefaultSwapchain(), &count, s.swapchainImages)
+		vk.GetSwapchainImages(s.manager.Device, s.DefaultSwapchain(), &count, s.swapchainImages)
 	}
 	return s.swapchainImages
 }
@@ -266,15 +266,15 @@ func (s *Swapchain) CmdCopyToSwapchain(cmd vk.CommandBuffer, srcImage vk.Image, 
 func (s *Swapchain) Destroy() {
 	for i := uint32(0); i < s.DefaultSwapchainLen(); i++ {
 		if i < uint32(len(s.Framebuffers)) {
-			vk.DestroyFramebuffer(s.Device, s.Framebuffers[i], nil)
+			vk.DestroyFramebuffer(s.manager.Device, s.Framebuffers[i], nil)
 		}
 		if i < uint32(len(s.DisplayViews)) {
-			vk.DestroyImageView(s.Device, s.DisplayViews[i], nil)
+			vk.DestroyImageView(s.manager.Device, s.DisplayViews[i], nil)
 		}
 	}
 	s.Framebuffers = nil
 	s.DisplayViews = nil
 	for i := range s.Swapchains {
-		vk.DestroySwapchain(s.Device, s.Swapchains[i], nil)
+		vk.DestroySwapchain(s.manager.Device, s.Swapchains[i], nil)
 	}
 }

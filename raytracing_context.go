@@ -12,10 +12,8 @@ import (
 // It does not own Manager resources; it only groups dependencies commonly needed
 // to build acceleration structures and other RT resources.
 type RaytracingContext struct {
-	device vk.Device
-	gpu    vk.PhysicalDevice
-	queue  vk.Queue
-	cmdCtx *CommandContext
+	manager *Manager
+	cmdCtx  *CommandContext
 
 	accelerationStructures []AccelerationStructure
 }
@@ -31,12 +29,10 @@ type TLASInstance struct {
 }
 
 // NewRaytracingContext groups the common RT dependencies without taking ownership.
-func NewRaytracingContext(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cmdCtx *CommandContext) RaytracingContext {
+func NewRaytracingContext(manager *Manager, cmdCtx *CommandContext) RaytracingContext {
 	return RaytracingContext{
-		device: device,
-		gpu:    gpu,
-		queue:  queue,
-		cmdCtx: cmdCtx,
+		manager: manager,
+		cmdCtx:  cmdCtx,
 	}
 }
 
@@ -80,17 +76,17 @@ func (rt *RaytracingContext) NewBottomLevelAccelerationStructure(
 
 	var sizeInfo vk.AccelerationStructureBuildSizesInfo
 	sizeInfo.SType = vk.StructureTypeAccelerationStructureBuildSizesInfo
-	vk.GetAccelerationStructureBuildSizes(rt.device, vk.AccelerationStructureBuildTypeDevice, &buildInfo, &primitiveCounts[0], &sizeInfo)
+	vk.GetAccelerationStructureBuildSizes(rt.manager.Device, vk.AccelerationStructureBuildTypeDevice, &buildInfo, &primitiveCounts[0], &sizeInfo)
 	sizeInfo.Deref()
 
-	asBuf, err := NewBufferDeviceLocal(rt.device, rt.gpu, uint64(sizeInfo.AccelerationStructureSize), true,
+	asBuf, err := NewBufferDeviceLocal(rt.manager.Device, rt.manager.Gpu, uint64(sizeInfo.AccelerationStructureSize), true,
 		vk.BufferUsageFlags(vk.BufferUsageAccelerationStructureStorageBit|vk.BufferUsageShaderDeviceAddressBit))
 	if err != nil {
 		return AccelerationStructure{}, fmt.Errorf("create BLAS buffer: %w", err)
 	}
 
 	var as vk.AccelerationStructure
-	if err := vk.Error(vk.CreateAccelerationStructure(rt.device, &vk.AccelerationStructureCreateInfo{
+	if err := vk.Error(vk.CreateAccelerationStructure(rt.manager.Device, &vk.AccelerationStructureCreateInfo{
 		SType:  vk.StructureTypeAccelerationStructureCreateInfo,
 		Buffer: asBuf.Buffer,
 		Size:   sizeInfo.AccelerationStructureSize,
@@ -100,10 +96,10 @@ func (rt *RaytracingContext) NewBottomLevelAccelerationStructure(
 		return AccelerationStructure{}, fmt.Errorf("CreateAccelerationStructure (BLAS): %w", err)
 	}
 
-	scratchBuf, err := NewBufferDeviceLocal(rt.device, rt.gpu, uint64(sizeInfo.BuildScratchSize), true,
+	scratchBuf, err := NewBufferDeviceLocal(rt.manager.Device, rt.manager.Gpu, uint64(sizeInfo.BuildScratchSize), true,
 		vk.BufferUsageFlags(vk.BufferUsageStorageBufferBit|vk.BufferUsageShaderDeviceAddressBit))
 	if err != nil {
-		vk.DestroyAccelerationStructure(rt.device, as, nil)
+		vk.DestroyAccelerationStructure(rt.manager.Device, as, nil)
 		asBuf.Destroy()
 		return AccelerationStructure{}, fmt.Errorf("create BLAS scratch buffer: %w", err)
 	}
@@ -127,19 +123,19 @@ func (rt *RaytracingContext) NewBottomLevelAccelerationStructure(
 
 	cmd, err := rt.cmdCtx.BeginOneTime()
 	if err != nil {
-		vk.DestroyAccelerationStructure(rt.device, as, nil)
+		vk.DestroyAccelerationStructure(rt.manager.Device, as, nil)
 		asBuf.Destroy()
 		return AccelerationStructure{}, fmt.Errorf("BeginOneTime: %w", err)
 	}
 	vk.CmdBuildAccelerationStructures(cmd, 1, &buildInfo2, [][]vk.AccelerationStructureBuildRangeInfo{rangeInfos})
-	if err := rt.cmdCtx.EndOneTime(rt.queue, cmd); err != nil {
-		vk.DestroyAccelerationStructure(rt.device, as, nil)
+	if err := rt.cmdCtx.EndOneTime(rt.manager.Queue, cmd); err != nil {
+		vk.DestroyAccelerationStructure(rt.manager.Device, as, nil)
 		asBuf.Destroy()
 		return AccelerationStructure{}, fmt.Errorf("EndOneTime: %w", err)
 	}
 
 	result := AccelerationStructure{
-		device:                rt.device,
+		device:                rt.manager.Device,
 		AccelerationStructure: as,
 		Buffer:                asBuf,
 		Type:                  vk.AccelerationStructureTypeBottomLevel,
@@ -165,7 +161,7 @@ func (rt *RaytracingContext) NewTopLevelAccelerationStructure(instances []TLASIn
 		return AccelerationStructure{}, err
 	}
 
-	instanceBuf, err := NewBufferHostVisible(rt.device, rt.gpu, instanceData, true,
+	instanceBuf, err := NewBufferHostVisible(rt.manager.Device, rt.manager.Gpu, instanceData, true,
 		vk.BufferUsageFlags(vk.BufferUsageShaderDeviceAddressBit|vk.BufferUsageAccelerationStructureBuildInputReadOnlyBit))
 	if err != nil {
 		return AccelerationStructure{}, fmt.Errorf("create TLAS instance buffer: %w", err)
@@ -193,17 +189,17 @@ func (rt *RaytracingContext) NewTopLevelAccelerationStructure(instances []TLASIn
 
 	var sizeInfo vk.AccelerationStructureBuildSizesInfo
 	sizeInfo.SType = vk.StructureTypeAccelerationStructureBuildSizesInfo
-	vk.GetAccelerationStructureBuildSizes(rt.device, vk.AccelerationStructureBuildTypeDevice, &buildInfo, &primitiveCount, &sizeInfo)
+	vk.GetAccelerationStructureBuildSizes(rt.manager.Device, vk.AccelerationStructureBuildTypeDevice, &buildInfo, &primitiveCount, &sizeInfo)
 	sizeInfo.Deref()
 
-	asBuf, err := NewBufferDeviceLocal(rt.device, rt.gpu, uint64(sizeInfo.AccelerationStructureSize), true,
+	asBuf, err := NewBufferDeviceLocal(rt.manager.Device, rt.manager.Gpu, uint64(sizeInfo.AccelerationStructureSize), true,
 		vk.BufferUsageFlags(vk.BufferUsageAccelerationStructureStorageBit|vk.BufferUsageShaderDeviceAddressBit))
 	if err != nil {
 		return AccelerationStructure{}, fmt.Errorf("create TLAS buffer: %w", err)
 	}
 
 	var as vk.AccelerationStructure
-	if err := vk.Error(vk.CreateAccelerationStructure(rt.device, &vk.AccelerationStructureCreateInfo{
+	if err := vk.Error(vk.CreateAccelerationStructure(rt.manager.Device, &vk.AccelerationStructureCreateInfo{
 		SType:  vk.StructureTypeAccelerationStructureCreateInfo,
 		Buffer: asBuf.Buffer,
 		Size:   sizeInfo.AccelerationStructureSize,
@@ -213,10 +209,10 @@ func (rt *RaytracingContext) NewTopLevelAccelerationStructure(instances []TLASIn
 		return AccelerationStructure{}, fmt.Errorf("CreateAccelerationStructure (TLAS): %w", err)
 	}
 
-	scratchBuf, err := NewBufferDeviceLocal(rt.device, rt.gpu, uint64(sizeInfo.BuildScratchSize), true,
+	scratchBuf, err := NewBufferDeviceLocal(rt.manager.Device, rt.manager.Gpu, uint64(sizeInfo.BuildScratchSize), true,
 		vk.BufferUsageFlags(vk.BufferUsageStorageBufferBit|vk.BufferUsageShaderDeviceAddressBit))
 	if err != nil {
-		vk.DestroyAccelerationStructure(rt.device, as, nil)
+		vk.DestroyAccelerationStructure(rt.manager.Device, as, nil)
 		asBuf.Destroy()
 		return AccelerationStructure{}, fmt.Errorf("create TLAS scratch buffer: %w", err)
 	}
@@ -239,19 +235,19 @@ func (rt *RaytracingContext) NewTopLevelAccelerationStructure(instances []TLASIn
 
 	cmd, err := rt.cmdCtx.BeginOneTime()
 	if err != nil {
-		vk.DestroyAccelerationStructure(rt.device, as, nil)
+		vk.DestroyAccelerationStructure(rt.manager.Device, as, nil)
 		asBuf.Destroy()
 		return AccelerationStructure{}, fmt.Errorf("BeginOneTime: %w", err)
 	}
 	vk.CmdBuildAccelerationStructures(cmd, 1, &buildInfo2, [][]vk.AccelerationStructureBuildRangeInfo{rangeInfos})
-	if err := rt.cmdCtx.EndOneTime(rt.queue, cmd); err != nil {
-		vk.DestroyAccelerationStructure(rt.device, as, nil)
+	if err := rt.cmdCtx.EndOneTime(rt.manager.Queue, cmd); err != nil {
+		vk.DestroyAccelerationStructure(rt.manager.Device, as, nil)
 		asBuf.Destroy()
 		return AccelerationStructure{}, fmt.Errorf("EndOneTime: %w", err)
 	}
 
 	result := AccelerationStructure{
-		device:                rt.device,
+		device:                rt.manager.Device,
 		AccelerationStructure: as,
 		Buffer:                asBuf,
 		Type:                  vk.AccelerationStructureTypeTopLevel,
