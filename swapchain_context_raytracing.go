@@ -16,7 +16,7 @@ type RaytracingRecreateConfig struct {
 	// uniform buffers to produce descriptor bindings for the new descriptor sets.
 	// Bindings that don't change on resize (e.g. acceleration structures) should
 	// be captured in the closure.
-	DescriptorBindings func(storageImg *ImageResource, uniforms *VulkanUniformBuffers) []DescriptorBinding
+	DescriptorBindings func(storageImg *ImageResource, uniforms *UniformBuffers) []DescriptorBinding
 }
 
 // AcquireNextImageRaytracing acquires the next image and automatically recreates
@@ -26,7 +26,7 @@ func (s *SwapchainContext) AcquireNextImageRaytracing(
 	windowSize vk.Extent2D,
 	cmdCtx *CommandContext,
 	storageImg *ImageResource,
-	uniforms *VulkanUniformBuffers,
+	uniforms *UniformBuffers,
 	descriptors *VulkanDescriptorInfo,
 	cfg RaytracingRecreateConfig,
 	semaphore vk.Semaphore,
@@ -41,7 +41,7 @@ func (s *SwapchainContext) PresentImageRaytracing(
 	windowSize vk.Extent2D,
 	cmdCtx *CommandContext,
 	storageImg *ImageResource,
-	uniforms *VulkanUniformBuffers,
+	uniforms *UniformBuffers,
 	descriptors *VulkanDescriptorInfo,
 	cfg RaytracingRecreateConfig,
 	imageIndex uint32,
@@ -56,7 +56,7 @@ func raytracingRecreateFunc(
 	s *SwapchainContext,
 	cmdCtx *CommandContext,
 	storageImg *ImageResource,
-	uniforms *VulkanUniformBuffers,
+	uniforms *UniformBuffers,
 	descriptors *VulkanDescriptorInfo,
 	cfg RaytracingRecreateConfig,
 ) SwapchainRecreateFunc {

@@ -7,8 +7,8 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// VulkanUniformBuffers manages a set of uniform buffers (typically one per swapchain image).
-type VulkanUniformBuffers struct {
+// UniformBuffers manages a set of uniform buffers (typically one per swapchain image).
+type UniformBuffers struct {
 	device   vk.Device
 	buffers  []vk.Buffer
 	memories []vk.DeviceMemory
@@ -17,8 +17,8 @@ type VulkanUniformBuffers struct {
 
 // NewUniformBuffers creates count uniform buffers of the given byte size.
 // Typically count matches the swapchain image count.
-func NewUniformBuffers(device vk.Device, gpu vk.PhysicalDevice, count uint32, dataSize int) (VulkanUniformBuffers, error) {
-	u := VulkanUniformBuffers{
+func NewUniformBuffers(device vk.Device, gpu vk.PhysicalDevice, count uint32, dataSize int) (UniformBuffers, error) {
+	u := UniformBuffers{
 		device:   device,
 		buffers:  make([]vk.Buffer, count),
 		memories: make([]vk.DeviceMemory, count),
@@ -56,7 +56,7 @@ func NewUniformBuffers(device vk.Device, gpu vk.PhysicalDevice, count uint32, da
 }
 
 // Update writes data into the uniform buffer at the given index.
-func (u *VulkanUniformBuffers) Update(index uint32, data []byte) {
+func (u *UniformBuffers) Update(index uint32, data []byte) {
 	var pData unsafe.Pointer
 	vk.MapMemory(u.device, u.memories[index], 0, vk.DeviceSize(len(data)), 0, &pData)
 	vk.Memcopy(pData, data)
@@ -64,22 +64,22 @@ func (u *VulkanUniformBuffers) Update(index uint32, data []byte) {
 }
 
 // GetBuffer returns the buffer at the given index.
-func (u *VulkanUniformBuffers) GetBuffer(index uint32) vk.Buffer {
+func (u *UniformBuffers) GetBuffer(index uint32) vk.Buffer {
 	return u.buffers[index]
 }
 
 // GetBuffers returns all buffers.
-func (u *VulkanUniformBuffers) GetBuffers() []vk.Buffer {
+func (u *UniformBuffers) GetBuffers() []vk.Buffer {
 	return u.buffers
 }
 
 // GetSize returns the byte size of each uniform buffer.
-func (u *VulkanUniformBuffers) GetSize() int {
+func (u *UniformBuffers) GetSize() int {
 	return u.size
 }
 
 // Destroy frees all uniform buffers and their memory.
-func (u *VulkanUniformBuffers) Destroy() {
+func (u *UniformBuffers) Destroy() {
 	if u == nil {
 		return
 	}

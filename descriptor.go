@@ -115,7 +115,7 @@ func (b *BindingStorageImage) writeSet(set vk.DescriptorSet, index uint32, _ uin
 // Each descriptor set gets the buffer at its swapchain index.
 type BindingUniformBuffer struct {
 	StageFlags vk.ShaderStageFlags
-	Uniforms   *VulkanUniformBuffers
+	Uniforms   *UniformBuffers
 }
 
 func (b *BindingUniformBuffer) layoutBinding(index uint32) vk.DescriptorSetLayoutBinding {
