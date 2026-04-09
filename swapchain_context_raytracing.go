@@ -27,7 +27,7 @@ func (s *SwapchainContext) AcquireNextImageRaytracing(
 	cmdCtx *CommandContext,
 	storageImg *ImageResource,
 	uniforms *UniformBuffers,
-	descriptors *VulkanDescriptorInfo,
+	descriptors *DescriptorInfo,
 	cfg RaytracingRecreateConfig,
 	semaphore vk.Semaphore,
 ) (imageIndex uint32, ok bool, err error) {
@@ -42,7 +42,7 @@ func (s *SwapchainContext) PresentImageRaytracing(
 	cmdCtx *CommandContext,
 	storageImg *ImageResource,
 	uniforms *UniformBuffers,
-	descriptors *VulkanDescriptorInfo,
+	descriptors *DescriptorInfo,
 	cfg RaytracingRecreateConfig,
 	imageIndex uint32,
 ) error {
@@ -57,7 +57,7 @@ func raytracingRecreateFunc(
 	cmdCtx *CommandContext,
 	storageImg *ImageResource,
 	uniforms *UniformBuffers,
-	descriptors *VulkanDescriptorInfo,
+	descriptors *DescriptorInfo,
 	cfg RaytracingRecreateConfig,
 ) SwapchainRecreateFunc {
 	return func(swap *Swapchain) error {

@@ -7,8 +7,8 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-// VulkanDescriptorInfo manages a descriptor set layout, pool, and allocated sets.
-type VulkanDescriptorInfo struct {
+// DescriptorInfo manages a descriptor set layout, pool, and allocated sets.
+type DescriptorInfo struct {
 	device vk.Device
 	layout vk.DescriptorSetLayout
 	pool   vk.DescriptorPool
@@ -16,17 +16,17 @@ type VulkanDescriptorInfo struct {
 }
 
 // GetLayout returns the descriptor set layout.
-func (d *VulkanDescriptorInfo) GetLayout() vk.DescriptorSetLayout {
+func (d *DescriptorInfo) GetLayout() vk.DescriptorSetLayout {
 	return d.layout
 }
 
 // GetSets returns all allocated descriptor sets.
-func (d *VulkanDescriptorInfo) GetSets() []vk.DescriptorSet {
+func (d *DescriptorInfo) GetSets() []vk.DescriptorSet {
 	return d.sets
 }
 
 // Destroy releases the descriptor pool and layout.
-func (d *VulkanDescriptorInfo) Destroy() {
+func (d *DescriptorInfo) Destroy() {
 	if d == nil {
 		return
 	}
@@ -266,8 +266,8 @@ func (b *BindingImageSamplerArray) writeSet(set vk.DescriptorSet, index uint32, 
 
 // NewDescriptorSets creates a descriptor set layout, pool, and sets from a slice of bindings.
 // Binding indices are assigned sequentially (0, 1, 2, ...).
-func NewDescriptorSets(device vk.Device, setCount uint32, bindings []DescriptorBinding) (VulkanDescriptorInfo, error) {
-	var d VulkanDescriptorInfo
+func NewDescriptorSets(device vk.Device, setCount uint32, bindings []DescriptorBinding) (DescriptorInfo, error) {
+	var d DescriptorInfo
 	d.device = device
 
 	// Layout

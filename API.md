@@ -13,7 +13,7 @@ graph TD
     PR["<b>PipelineRasterization</b><br/>Pipeline, Layout, Cache"]
     CC["<b>CommandContext</b><br/>CommandPool<br/>CommandBuffers"]
 
-    DI["<b>VulkanDescriptorInfo</b><br/>Layout, Pool, Sets"]
+    DI["<b>DescriptorInfo</b><br/>Layout, Pool, Sets"]
     UB["<b>UniformBuffers</b><br/>per-frame Buffers"]
     IR["<b>ImageResource</b><br/>Image, View, Sampler"]
     IB["<b>VulkanIndexBufferInfo</b><br/>IndexBuffer, Count"]
@@ -59,7 +59,7 @@ graph TD
     GM["<b>GLTFModel</b><br/>Primitives, Textures<br/>GeometryBuffer, BLAS"]
     GP["<b>GLTFPrimitive</b><br/>VertexBuffer, IndexBuffer<br/>Transform, TextureIndex"]
 
-    DI["<b>VulkanDescriptorInfo</b><br/>Layout, Pool, Sets"]
+    DI["<b>DescriptorInfo</b><br/>Layout, Pool, Sets"]
     UB["<b>UniformBuffers</b><br/>per-frame Buffers"]
     IR["<b>ImageResource</b><br/>Storage Image"]
     SW["<b>Swapchain</b><br/>Swapchain, ImageViews<br/>Framebuffers"]
@@ -115,7 +115,7 @@ graph TD
 | [`VulkanIndexBufferInfo`](#struct-vulkanindexbufferinfo) | common        |               | Helper for an index buffer and its index count.                  |
 | [`ImageResource`](#struct-imageresource)     | common        |               | Generic image resource with image, view, sampler, and memory.    |
 | [`UniformBuffers`](#struct-uniformbuffers)   | common        | resource      | Set of uniform buffers, typically one per frame.                 |
-| [`VulkanDescriptorInfo`](#struct-vulkandescriptorinfo)   | common        |               | Descriptor layout, pool, and allocated sets.                     |
+| [`DescriptorInfo`](#struct-descriptorinfo)   | common        |               | Descriptor layout, pool, and allocated sets.                     |
 | [`SyncInfo`](#struct-syncinfo)               | common        |               | Fence and semaphore for synchronization.                         |
 | [`Model`](#struct-model)                                 | common        |               | Untextured glTF model in an interleaved vertex layout.           |
 | [`TexturedModel`](#struct-texturedmodel)                 | common        |               | Textured model including an RGBA base color texture.             |
@@ -341,8 +341,8 @@ General image resource including `vk.Image`, `vk.ImageView`, `vk.Sampler`, memor
 
 Manages a set of uniform buffers of equal size, usually one per frame or per swapchain image.
 
-<a id="struct-vulkandescriptorinfo"></a>
-### `VulkanDescriptorInfo`
+<a id="struct-descriptorinfo"></a>
+### `DescriptorInfo`
 
 Holds a descriptor set layout, descriptor pool, and already allocated descriptor sets.
 
@@ -352,10 +352,10 @@ Holds a descriptor set layout, descriptor pool, and already allocated descriptor
 
 <a id="newdescriptorsets"></a>
 #### Descriptor Binding System
-`NewDescriptorSets` is the general-purpose constructor for `VulkanDescriptorInfo`. It accepts a slice of `DescriptorBinding` interface values and automatically derives the layout, pool sizes, set allocation, and descriptor writes.
+`NewDescriptorSets` is the general-purpose constructor for `DescriptorInfo`. It accepts a slice of `DescriptorBinding` interface values and automatically derives the layout, pool sizes, set allocation, and descriptor writes.
 
 ```go
-func NewDescriptorSets(device vk.Device, setCount uint32, bindings []DescriptorBinding) (VulkanDescriptorInfo, error)
+func NewDescriptorSets(device vk.Device, setCount uint32, bindings []DescriptorBinding) (DescriptorInfo, error)
 ```
 
 The `DescriptorBinding` interface is implemented by concrete binding types. Each type holds only the fields relevant to that descriptor kind, providing compile-time safety against misconfigured bindings.
@@ -822,20 +822,20 @@ Returns the size of one uniform buffer in bytes. It does not return the combined
 Frees all managed buffers and their device memory. This is the full teardown path for the whole resource set.
 
 <a id="vulkandescriptorinfo-getlayout"></a>
-### `(*VulkanDescriptorInfo).GetLayout`
-`func (d *VulkanDescriptorInfo) GetLayout() vk.DescriptorSetLayout`
+### `(*DescriptorInfo).GetLayout`
+`func (d *DescriptorInfo) GetLayout() vk.DescriptorSetLayout`
 
 Returns the descriptor set layout created by the library helpers. Typically used while building the pipeline layout.
 
 <a id="vulkandescriptorinfo-getsets"></a>
-### `(*VulkanDescriptorInfo).GetSets`
-`func (d *VulkanDescriptorInfo) GetSets() []vk.DescriptorSet`
+### `(*DescriptorInfo).GetSets`
+`func (d *DescriptorInfo) GetSets() []vk.DescriptorSet`
 
 Returns the allocated descriptor sets. The library helpers already populate them based on the selected constructor.
 
 <a id="vulkandescriptorinfo-destroy"></a>
-### `(*VulkanDescriptorInfo).Destroy`
-`func (d *VulkanDescriptorInfo) Destroy()`
+### `(*DescriptorInfo).Destroy`
+`func (d *DescriptorInfo) Destroy()`
 
 Destroys the descriptor pool and descriptor set layout. The sets themselves are implicitly released together with the pool.
 

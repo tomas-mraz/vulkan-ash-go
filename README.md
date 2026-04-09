@@ -15,6 +15,9 @@ Examples for usage of this framework are in the separate repository [github.com/
 - [github.com/tomas-mraz/vulkan](https://github.com/tomas-mraz/vulkan) – Go Vulkan API bindings
 - [github.com/qmuntal/gltf](https://github.com/qmuntal/gltf) – Go loading models from glTF files
 
+### Force update dependencies
+
+`go get github.com/tomas-mraz/vulkan-ash@latest`
 
 ## Links to related projects
 
