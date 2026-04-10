@@ -90,11 +90,6 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 		err = fmt.Errorf("vk.CreateInstance failed with %s", err)
 		return manager, err
 	}
-	err = vk.InitInstance(manager.Instance)
-	if err != nil {
-		return Manager{}, err
-	}
-
 	if createSurfaceFn != nil {
 		manager.Surface, err = createSurfaceFn(manager.Instance)
 		if err != nil {
