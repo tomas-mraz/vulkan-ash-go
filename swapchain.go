@@ -15,6 +15,7 @@ type Swapchain struct {
 
 	DisplaySize   vk.Extent2D
 	DisplayFormat vk.Format
+	PreTransform  vk.SurfaceTransformFlagBits
 
 	Framebuffers []vk.Framebuffer
 	DisplayViews []vk.ImageView
@@ -27,17 +28,16 @@ func NewSwapchain(manager *Manager, windowSize vk.Extent2D) (Swapchain, error) {
 }
 
 func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swapchain) (Swapchain, error) {
-	//gpu := v.gpuDevices[0]
 
 	// Phase 1: vk.GetPhysicalDeviceSurfaceCapabilities
 	//			vk.GetPhysicalDeviceSurfaceFormats
 
-	var swap Swapchain
+	var swapchain Swapchain
 	var surfaceCapabilities vk.SurfaceCapabilities
 	err := vk.Error(vk.GetPhysicalDeviceSurfaceCapabilities(manager.Gpu, manager.Surface, &surfaceCapabilities))
 	if err != nil {
 		err = fmt.Errorf("vk.GetPhysicalDeviceSurfaceCapabilities failed with %s", err)
-		return swap, err
+		return swapchain, err
 	}
 	var formatCount uint32
 	vk.GetPhysicalDeviceSurfaceFormats(manager.Gpu, manager.Surface, &formatCount, nil)
@@ -56,29 +56,29 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 	}
 	if chosenFormat < 0 {
 		err := fmt.Errorf("vk.GetPhysicalDeviceSurfaceFormats not found suitable format")
-		return swap, err
+		return swapchain, err
 	}
 
 	// Phase 2: vk.CreateSwapchain
-	//			create a swapchain with supported capabilities and format
 
 	surfaceCapabilities.Deref()
 	slog.Debug(fmt.Sprintf("NewSwapchain surfaceCapabilities %v", surfaceCapabilities))
-	swap.DisplayFormat = formats[chosenFormat].Format
+	swapchain.DisplayFormat = formats[chosenFormat].Format
 
 	surfaceCapabilities.CurrentExtent.Deref()
 	if surfaceCapabilities.CurrentExtent.Width == vk.MaxUint32 && surfaceCapabilities.CurrentExtent.Height == vk.MaxUint32 {
 		// Wayland specific https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#vkCreateAndroidSurfaceKHR
-		swap.DisplaySize = windowSize
+		swapchain.DisplaySize = windowSize
 		slog.Debug("[wayland specific] surface extent size is not set, using window size")
 	} else if surfaceCapabilities.CurrentExtent.Width == 0 && surfaceCapabilities.CurrentExtent.Height == 0 {
 		// Android-specific not yet ready surface
-		swap.DisplaySize = windowSize
+		swapchain.DisplaySize = windowSize
 		slog.Debug("[android specific] surface extent size is 0x0, using window size")
 	} else {
-		swap.DisplaySize = surfaceCapabilities.CurrentExtent
+		swapchain.DisplaySize = surfaceCapabilities.CurrentExtent
 	}
-	slog.Debug(fmt.Sprintf("final display size is %d x %d", windowSize.Width, windowSize.Height))
+	swapchain.PreTransform = surfaceCapabilities.CurrentTransform
+	slog.Debug(fmt.Sprintf("final display size is %d x %d, preTransform=%d", swapchain.DisplaySize.Width, swapchain.DisplaySize.Height, swapchain.PreTransform))
 
 	swapchainCreateInfo := vk.SwapchainCreateInfo{
 		SType:            vk.StructureTypeSwapchainCreateInfo,
@@ -86,9 +86,9 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 		MinImageCount:    surfaceCapabilities.MinImageCount,
 		ImageFormat:      formats[chosenFormat].Format,
 		ImageColorSpace:  formats[chosenFormat].ColorSpace,
-		ImageExtent:      swap.DisplaySize,
+		ImageExtent:      swapchain.DisplaySize,
 		ImageUsage:       vk.ImageUsageFlags(vk.ImageUsageColorAttachmentBit | vk.ImageUsageTransferDstBit),
-		PreTransform:     vk.SurfaceTransformIdentityBit,
+		PreTransform:     swapchain.PreTransform,
 		CompositeAlpha:   vk.CompositeAlphaOpaqueBit,
 		ImageArrayLayers: 1,
 		ImageSharingMode: vk.SharingModeExclusive,
@@ -96,25 +96,25 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 		OldSwapchain:     oldSwapchain,
 		Clipped:          vk.False,
 	}
-	var swapchain vk.Swapchain
-	err = vk.Error(vk.CreateSwapchain(manager.Device, &swapchainCreateInfo, nil, &swapchain))
+	var vulkanSwapchain vk.Swapchain
+	err = vk.Error(vk.CreateSwapchain(manager.Device, &swapchainCreateInfo, nil, &vulkanSwapchain))
 	if err != nil {
 		err = fmt.Errorf("vk.CreateSwapchain failed with %s", err)
-		return swap, err
+		return swapchain, err
 	}
-	swap.Swapchains = []vk.Swapchain{swapchain}
-	swap.SwapchainLen = make([]uint32, 1)
+	swapchain.Swapchains = []vk.Swapchain{vulkanSwapchain}
+	swapchain.SwapchainLen = make([]uint32, 1)
 
-	err = vk.Error(vk.GetSwapchainImages(manager.Device, swap.DefaultSwapchain(), &(swap.SwapchainLen[0]), nil))
+	err = vk.Error(vk.GetSwapchainImages(manager.Device, swapchain.DefaultSwapchain(), &(swapchain.SwapchainLen[0]), nil))
 	if err != nil {
 		err = fmt.Errorf("vk.GetSwapchainImages failed with %s", err)
-		return swap, err
+		return swapchain, err
 	}
 	for i := range formats {
 		formats[i].Free()
 	}
-	swap.manager = manager
-	return swap, nil
+	swapchain.manager = manager
+	return swapchain, nil
 }
 
 func (s *Swapchain) DefaultSwapchain() vk.Swapchain {
@@ -261,6 +261,23 @@ func (s *Swapchain) CmdCopyToSwapchain(cmd vk.CommandBuffer, srcImage vk.Image, 
 			SrcAccessMask: vk.AccessFlags(vk.AccessTransferReadBit), DstAccessMask: vk.AccessFlags(vk.AccessShaderWriteBit),
 			SrcQueueFamilyIndex: vk.QueueFamilyIgnored, DstQueueFamilyIndex: vk.QueueFamilyIgnored,
 		}})
+}
+
+// PreRotationMatrix returns a rotation matrix around the Z axis that matches
+// the swapchain's preTransform. Multiply this into the projection matrix to
+// handle Android surface rotation without compositor overhead.
+func (s *Swapchain) PreRotationMatrix() Mat4x4 {
+	var m Mat4x4
+	m.Identity() // only choice for desktop, default for Android
+	switch s.PreTransform {
+	case vk.SurfaceTransformRotate90Bit:
+		m.RotateZ(&m, DegreesToRadians(90))
+	case vk.SurfaceTransformRotate180Bit:
+		m.RotateZ(&m, DegreesToRadians(180))
+	case vk.SurfaceTransformRotate270Bit:
+		m.RotateZ(&m, DegreesToRadians(270))
+	}
+	return m
 }
 
 func (s *Swapchain) Destroy() {
