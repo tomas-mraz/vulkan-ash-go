@@ -14,9 +14,10 @@ type SwapchainRecreateFunc func(swap *Swapchain) error
 // It centralizes Acquire/Present result handling and coordinates swapchain recreation,
 // but it does not own the Manager or Swapchain it references.
 type SwapchainContext struct {
-	manager       *Manager
-	swapchain     *Swapchain
-	needsRecreate bool
+	manager        *Manager
+	swapchain      *Swapchain
+	displayTiming  *DisplayTiming
+	needsRecreate  bool
 }
 
 // NewSwapchainContext groups the common swapchain dependencies without taking ownership.
@@ -24,6 +25,14 @@ func NewSwapchainContext(manager *Manager, swapchain *Swapchain) SwapchainContex
 	return SwapchainContext{
 		manager:   manager,
 		swapchain: swapchain,
+	}
+}
+
+// SetDisplayTiming attaches a DisplayTiming to the context.
+// When set, PresentImage automatically chains display timing info.
+func (s *SwapchainContext) SetDisplayTiming(dt *DisplayTiming) {
+	if s != nil {
+		s.displayTiming = dt
 	}
 }
 
@@ -98,6 +107,9 @@ func (s *SwapchainContext) PresentImage(imageIndex uint32, waitSemaphores []vk.S
 		SwapchainCount:     1,
 		PSwapchains:        []vk.Swapchain{s.swapchain.DefaultSwapchain()},
 		PImageIndices:      []uint32{imageIndex},
+	}
+	if s.displayTiming != nil {
+		s.displayTiming.ChainPresentInfo(&presentInfo)
 	}
 	result := vk.QueuePresent(s.manager.Queue, &presentInfo)
 	presented, recreate, err := classifySwapchainResult(result)

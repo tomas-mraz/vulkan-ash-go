@@ -239,7 +239,9 @@ Frees the buffer that stores the shader binding table.
 | [`NewDevice`](#newdevice)                                           | common        | Creates the basic Vulkan instance/device/surface context.      |
 | [`NewDeviceWithOptions`](#newdevicewithoptions)                     | common        | Creates a Vulkan context with advanced options.                |
 | [`NewAndroidSurface`](#newandroidsurface)                           | Android       | Creates an Android surface from a native window.               |
-| [`AndroidExtensions`](#androidextensions)                           | Android       | Returns required Android instance extensions.                  |
+| [`AndroidInstanceExtensions`](#androidinstanceextensions)           | Android       | Returns required Android instance extensions.                  |
+| [`AndroidDeviceExtensions`](#androiddeviceextensions)               | Android       | Returns recommended Android device extensions.                 |
+| [`NewDisplayTiming`](#newdisplaytiming)                             | Android       | Creates a frame pacer using `VK_GOOGLE_display_timing`.        |
 | [`MakeCString`](#makecstring)                                       | common        | Appends a null terminator to a Go string.                      |
 | [`LoadShaderFromBytes`](#loadshaderfrombytes)                       | common        | Creates a shader module from raw SPIR-V data.                  |
 | [`NewCommandContext`](#newcommandcontext)                           | common        | Creates a command pool and optional command buffers.           |
@@ -559,11 +561,33 @@ Android-only helper for creating a `vk.Surface` from a native window pointer. Th
 
 Appends a null terminator to the end of a string if it is not already present. Useful when passing extension and layer names to Vulkan.
 
-<a id="androidextensions"></a>
-### `AndroidExtensions`
-`func AndroidExtensions() []string`
+<a id="androidinstanceextensions"></a>
+### `AndroidInstanceExtensions`
+`func AndroidInstanceExtensions() []string`
 
-Returns a fresh slice containing the Android instance extensions used by the library. The result is a copy and can be safely modified.
+Returns a fresh slice containing the Android instance extensions (`VK_KHR_surface`, `VK_KHR_android_surface`). The result is a copy and can be safely modified.
+
+<a id="androiddeviceextensions"></a>
+### `AndroidDeviceExtensions`
+`func AndroidDeviceExtensions() []string`
+
+Returns a fresh slice containing the recommended Android device extensions (`VK_GOOGLE_display_timing`). Pass these via `DeviceOptions.DeviceExtensions` when creating a manager. The result is a copy and can be safely modified.
+
+<a id="newdisplaytiming"></a>
+### `NewDisplayTiming`
+`func NewDisplayTiming(device vk.Device, swapchain vk.Swapchain) DisplayTiming`
+
+Creates a `DisplayTiming` that uses the `VK_GOOGLE_display_timing` extension for frame pacing. Queries the display refresh cycle duration on creation. If the extension is unavailable, returns a disabled instance where all methods are no-ops.
+
+**Methods:**
+
+| Method | Description |
+|---|---|
+| `IsEnabled() bool` | Reports whether display timing is active. |
+| `GetRefreshDuration() uint64` | Returns the display refresh cycle in nanoseconds. |
+| `SyncPastTiming()` | Drains past presentation results and recalculates target time. |
+| `NextPresentInfo() *vk.PresentTimesInfoGOOGLE` | Returns timing info to chain into `PresentInfo.PNext`. `nil` when disabled. |
+| `ChainPresentInfo(presentInfo *vk.PresentInfo)` | Convenience: sets `PNext` on the given present info. No-op when disabled. |
 
 <a id="destroyerfunc-destroy"></a>
 ### `(DestroyerFunc).Destroy`
