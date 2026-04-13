@@ -17,17 +17,14 @@ const (
 
 var (
 	rtExtensions = [...]string{
-		"VK_KHR_acceleration_structure\x00",
-		"VK_KHR_ray_tracing_pipeline\x00",
-		"VK_KHR_buffer_device_address\x00",
-		"VK_KHR_deferred_host_operations\x00",
-		"VK_EXT_descriptor_indexing\x00",
-		"VK_KHR_spirv_1_4\x00",
-		"VK_KHR_shader_float_controls\x00",
+		MakeCString(vk.KhrAccelerationStructureExtensionName),
+		MakeCString(vk.KhrRayTracingPipelineExtensionName),
+		MakeCString(vk.KhrBufferDeviceAddressExtensionName),
+		MakeCString(vk.KhrDeferredHostOperationsExtensionName),
+		MakeCString(vk.ExtDescriptorIndexingExtensionName),
+		MakeCString(vk.KhrSpirv14ExtensionName),
+		MakeCString(vk.KhrShaderFloatControlsExtensionName),
 	}
-	androidExtensions = [...]string{
-		"VK_KHR_surface\x00",
-		"VK_KHR_android_surface\x00"}
 )
 
 func trimCString(slice []byte) string {
@@ -46,10 +43,6 @@ func MakeCString(s string) string {
 
 func RaytracingExtensions() []string {
 	return append([]string(nil), rtExtensions[:]...)
-}
-
-func AndroidExtensions() []string {
-	return append([]string(nil), androidExtensions[:]...)
 }
 
 // LoadShaderFromBytes creates a shader module from raw SPIR-V bytecode.
