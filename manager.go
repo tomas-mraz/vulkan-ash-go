@@ -24,12 +24,13 @@ type Manager struct {
 	debugClb vk.DebugReportCallback
 }
 
-// DeviceOptions configures device creation for NewDeviceWithOptions.
+// DeviceOptions configures instance and device creation for NewManager.
 type DeviceOptions struct {
-	DeviceExtensions []string
-	PNextChain       unsafe.Pointer // pNext chain for VkDeviceCreateInfo
-	EnabledFeatures  *vk.PhysicalDeviceFeatures
-	ApiVersion       uint32 // Manager API version, e.g. vk.MakeVersion(1,2,0). 0 defaults to 1.0.
+	InstanceExtensions []string
+	DeviceExtensions   []string
+	PNextChain         unsafe.Pointer // pNext chain for VkDeviceCreateInfo
+	EnabledFeatures    *vk.PhysicalDeviceFeatures
+	ApiVersion         uint32 // Manager API version, e.g. vk.MakeVersion(1,2,0). 0 defaults to 1.0.
 }
 
 // CreateSurfaceFunc creates a VkSurface from a Vulkan instance.
@@ -38,11 +39,17 @@ type DeviceOptions struct {
 type CreateSurfaceFunc func(instance vk.Instance) (vk.Surface, error)
 
 // NewManager creates a Manager device with custom options for extensions and features.
-func NewManager(appName string, instanceExtensions []string, createSurfaceFn CreateSurfaceFunc, opts *DeviceOptions) (Manager, error) {
+func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceOptions) (Manager, error) {
+
+	// Phase 1: Create Instance
 
 	apiVersion := vk.MakeVersion(1, 0, 0)
-	if opts != nil && opts.ApiVersion != 0 {
-		apiVersion = opts.ApiVersion
+	var instanceExtensions []string
+	if opts != nil {
+		if opts.ApiVersion != 0 {
+			apiVersion = opts.ApiVersion
+		}
+		instanceExtensions = opts.InstanceExtensions
 	}
 	var appInfo = &vk.ApplicationInfo{
 		SType:              vk.StructureTypeApplicationInfo,
@@ -52,12 +59,10 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 		PEngineName:        []byte("no engine\x00"),
 	}
 
-	// Phase 1: vk.CreateInstance with vk.InstanceCreateInfo
-
 	existingExtensions := getInstanceExtensions()
-	slog.Debug(fmt.Sprintf("Instance extensions: %v", existingExtensions))
+	slog.Debug(fmt.Sprintf("Instance have extensions: %v", existingExtensions))
 
-	// instanceExtensions := vk.GetRequiredInstanceExtensions()
+	//instanceExtensions := vk.GetRequiredInstanceExtensions()
 	if debug {
 		instanceExtensions = append(instanceExtensions, vk.ExtDebugReportExtensionName)
 	}
@@ -90,11 +95,11 @@ func NewManager(appName string, instanceExtensions []string, createSurfaceFn Cre
 		err = fmt.Errorf("vk.CreateInstance failed with %s", err)
 		return manager, err
 	}
+
+	// Phase 2: Create Surface and Device
+
 	if createSurfaceFn != nil {
 		manager.Surface, err = createSurfaceFn(manager.Instance)
-		if err != nil {
-			return Manager{}, err
-		}
 		if err != nil {
 			vk.DestroyInstance(manager.Instance, nil)
 			return Manager{}, fmt.Errorf("create surface failed with %s", err)
