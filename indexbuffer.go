@@ -50,7 +50,7 @@ func newIndexBufferFromBytes(device vk.Device, gpu vk.PhysicalDevice, data []byt
 	vk.GetBufferMemoryRequirements(device, ib.buffer, &memReq)
 	memReq.Deref()
 
-	memIdx, _ := vk.FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit)
+	memIdx, _ := FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit)
 	err = vk.Error(vk.AllocateMemory(device, &vk.MemoryAllocateInfo{
 		SType:           vk.StructureTypeMemoryAllocateInfo,
 		AllocationSize:  memReq.Size,

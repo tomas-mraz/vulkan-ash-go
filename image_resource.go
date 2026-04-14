@@ -64,8 +64,7 @@ func NewImageTexture(device vk.Device, gpu vk.PhysicalDevice, width, height uint
 	vk.GetImageMemoryRequirements(device, r.Image, &memReq)
 	memReq.Deref()
 
-	memIdx, _ := vk.FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits,
-		vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit)
+	memIdx, _ := FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit)
 	err = vk.Error(vk.AllocateMemory(device, &vk.MemoryAllocateInfo{
 		SType:           vk.StructureTypeMemoryAllocateInfo,
 		AllocationSize:  memReq.Size,
@@ -177,7 +176,7 @@ func NewImageTextureWithSampler(device vk.Device, gpu vk.PhysicalDevice, queue v
 	vk.GetImageMemoryRequirements(device, r.Image, &memReqs)
 	memReqs.Deref()
 
-	memIdx, _ := vk.FindMemoryTypeIndex(gpu, memReqs.MemoryTypeBits, vk.MemoryPropertyDeviceLocalBit)
+	memIdx, _ := FindMemoryTypeIndex(gpu, memReqs.MemoryTypeBits, vk.MemoryPropertyDeviceLocalBit)
 	err = vk.Error(vk.AllocateMemory(device, &vk.MemoryAllocateInfo{
 		SType:           vk.StructureTypeMemoryAllocateInfo,
 		AllocationSize:  memReqs.Size,
@@ -277,7 +276,7 @@ func NewImageStorage(device vk.Device, gpu vk.PhysicalDevice, queue vk.Queue, cm
 	vk.GetImageMemoryRequirements(device, r.Image, &memReqs)
 	memReqs.Deref()
 
-	memIdx, _ := vk.FindMemoryTypeIndex(gpu, memReqs.MemoryTypeBits, vk.MemoryPropertyDeviceLocalBit)
+	memIdx, _ := FindMemoryTypeIndex(gpu, memReqs.MemoryTypeBits, vk.MemoryPropertyDeviceLocalBit)
 	err = vk.Error(vk.AllocateMemory(device, &vk.MemoryAllocateInfo{
 		SType:           vk.StructureTypeMemoryAllocateInfo,
 		AllocationSize:  memReqs.Size,
@@ -339,7 +338,7 @@ func NewImageDepth(device vk.Device, gpu vk.PhysicalDevice, width, height uint32
 	vk.GetImageMemoryRequirements(device, r.Image, &memReq)
 	memReq.Deref()
 
-	memIdx, _ := vk.FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits, vk.MemoryPropertyDeviceLocalBit)
+	memIdx, _ := FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits, vk.MemoryPropertyDeviceLocalBit)
 	err = vk.Error(vk.AllocateMemory(device, &vk.MemoryAllocateInfo{
 		SType:           vk.StructureTypeMemoryAllocateInfo,
 		AllocationSize:  memReq.Size,

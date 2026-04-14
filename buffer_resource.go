@@ -62,11 +62,11 @@ func NewBufferResource(device vk.Device, gpu vk.PhysicalDevice, size uint64, opt
 		allocPNext = unsafe.Pointer(&allocFlags)
 	}
 
-	memIdx, ok := vk.FindMemoryTypeIndex(gpu, memReqs.MemoryTypeBits, opts.MemoryProperties)
+	memIdx, ok := FindMemoryTypeIndex(gpu, memReqs.MemoryTypeBits, opts.MemoryProperties)
 	if !ok {
 		vk.DestroyBuffer(device, res.Buffer, nil)
 		var empty BufferResource
-		return empty, fmt.Errorf("vk.FindMemoryTypeIndex failed for requested buffer memory properties")
+		return empty, fmt.Errorf("FindMemoryTypeIndex failed for requested buffer memory properties")
 	}
 
 	err = vk.Error(vk.AllocateMemory(device, &vk.MemoryAllocateInfo{

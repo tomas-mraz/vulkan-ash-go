@@ -40,8 +40,7 @@ func NewUniformBuffers(device vk.Device, gpu vk.PhysicalDevice, count uint32, da
 		vk.GetBufferMemoryRequirements(device, u.buffers[i], &memReq)
 		memReq.Deref()
 
-		memIdx, _ := vk.FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits,
-			vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit)
+		memIdx, _ := FindMemoryTypeIndex(gpu, memReq.MemoryTypeBits, vk.MemoryPropertyHostVisibleBit|vk.MemoryPropertyHostCoherentBit)
 		err = vk.Error(vk.AllocateMemory(device, &vk.MemoryAllocateInfo{
 			SType:           vk.StructureTypeMemoryAllocateInfo,
 			AllocationSize:  memReq.Size,

@@ -62,6 +62,29 @@ func makeUniqueCStrings(values []string) []string {
 	return result
 }
 
+// FindMemoryTypeIndex finds a memory type index for the given type bits and
+// required memory property flags. Returns the index and true if found.
+func FindMemoryTypeIndex(dev vk.PhysicalDevice,
+	typeBits uint32, reqMask vk.MemoryPropertyFlagBits) (uint32, bool) {
+
+	var memProperties vk.PhysicalDeviceMemoryProperties
+	vk.GetPhysicalDeviceMemoryProperties(dev, &memProperties)
+	memProperties.Deref()
+
+	memFlags := vk.MemoryPropertyFlags(reqMask)
+	for i := uint32(0); i < memProperties.MemoryTypeCount; i++ {
+		if typeBits&(1<<i) == 0 {
+			continue
+		}
+		memType := memProperties.MemoryTypes[i]
+		memType.Deref()
+		if memType.PropertyFlags&memFlags == memFlags {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
 // LoadShaderFromBytes creates a shader module from raw SPIR-V bytecode.
 func LoadShaderFromBytes(device vk.Device, data []byte) (vk.ShaderModule, error) {
 	var module vk.ShaderModule
