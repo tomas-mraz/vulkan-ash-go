@@ -78,10 +78,7 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 		instanceExtensions = append(instanceExtensions, vk.KhrPortabilityEnumerationExtensionName)
 	}
 	if runtime.GOOS == OSAndroid {
-		instanceExtensions = append(instanceExtensions, []string{
-			vk.KhrSurfaceExtensionName,
-			vk.KhrAndroidSurfaceExtensionName,
-		}...)
+		instanceExtensions = append(instanceExtensions, vk.GetAndroidRequiredInstanceExtensions()...)
 	}
 	instanceExtensions = makeUniqueCStrings(instanceExtensions)
 
