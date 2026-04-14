@@ -16,22 +16,26 @@ const (
 )
 
 var (
-	rtExtensions = [...]string{
-		MakeCString(vk.KhrAccelerationStructureExtensionName),
-		MakeCString(vk.KhrRayTracingPipelineExtensionName),
-		MakeCString(vk.KhrBufferDeviceAddressExtensionName),
-		MakeCString(vk.KhrDeferredHostOperationsExtensionName),
-		MakeCString(vk.ExtDescriptorIndexingExtensionName),
-		MakeCString(vk.KhrSpirv14ExtensionName),
-		MakeCString(vk.KhrShaderFloatControlsExtensionName),
+	rtDeviceExtensions = [...]string{
+		vk.KhrAccelerationStructureExtensionName,
+		vk.KhrRayTracingPipelineExtensionName,
+		vk.KhrBufferDeviceAddressExtensionName,
+		vk.KhrDeferredHostOperationsExtensionName,
+		vk.ExtDescriptorIndexingExtensionName,
+		vk.KhrSpirv14ExtensionName,
+		vk.KhrShaderFloatControlsExtensionName,
 	}
 )
+
+func RaytracingDeviceExtensions() []string {
+	return append([]string(nil), rtDeviceExtensions[:]...)
+}
 
 func trimCString(slice []byte) string {
 	return string(bytes.TrimRight(slice, end))
 }
 
-func MakeCString(s string) string {
+func makeCString(s string) string {
 	if len(s) == 0 {
 		return end
 	}
@@ -41,8 +45,21 @@ func MakeCString(s string) string {
 	return s
 }
 
-func RaytracingExtensions() []string {
-	return append([]string(nil), rtExtensions[:]...)
+func makeUniqueCStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+
+	for _, value := range values {
+		cString := makeCString(value)
+		if _, ok := seen[cString]; ok {
+			continue
+		}
+
+		seen[cString] = struct{}{}
+		result = append(result, cString)
+	}
+
+	return result
 }
 
 // LoadShaderFromBytes creates a shader module from raw SPIR-V bytecode.

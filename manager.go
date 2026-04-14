@@ -11,9 +11,15 @@ import (
 	vk "github.com/tomas-mraz/vulkan"
 )
 
-const MACOS = "darwin"
+const (
+	OSMac     = "darwin"
+	OSAndroid = "android"
+)
 
-var debug = false
+var (
+	validationLayersSwitch = false
+	debugSwitch            = false
+)
 
 type Manager struct {
 	Device   vk.Device
@@ -45,11 +51,13 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 
 	apiVersion := vk.MakeVersion(1, 0, 0)
 	var instanceExtensions []string
+	var deviceExtensions []string
 	if opts != nil {
 		if opts.ApiVersion != 0 {
 			apiVersion = opts.ApiVersion
 		}
 		instanceExtensions = opts.InstanceExtensions
+		deviceExtensions = opts.DeviceExtensions
 	}
 	var appInfo = &vk.ApplicationInfo{
 		SType:              vk.StructureTypeApplicationInfo,
@@ -63,16 +71,24 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 	slog.Debug(fmt.Sprintf("Instance have extensions: %v", existingExtensions))
 
 	//instanceExtensions := vk.GetRequiredInstanceExtensions()
-	if debug {
+	if debugSwitch {
 		instanceExtensions = append(instanceExtensions, vk.ExtDebugReportExtensionName)
 	}
-	if runtime.GOOS == MACOS {
+	if runtime.GOOS == OSMac {
 		instanceExtensions = append(instanceExtensions, vk.KhrPortabilityEnumerationExtensionName)
 	}
+	if runtime.GOOS == OSAndroid {
+		instanceExtensions = append(instanceExtensions, []string{
+			vk.KhrSurfaceExtensionName,
+			vk.KhrAndroidSurfaceExtensionName,
+		}...)
+	}
+	instanceExtensions = makeUniqueCStrings(instanceExtensions)
 
 	// ANDROID: these layers must be included in APK
-	instanceLayers := []string{
-		"VK_LAYER_KHRONOS_validation\x00",
+	instanceLayers := make([]string, 0)
+	if validationLayersSwitch {
+		instanceLayers = append(instanceLayers, "VK_LAYER_KHRONOS_validation\x00")
 		// "VK_LAYER_LUNARG_api_dump\x00",
 	}
 
@@ -85,7 +101,7 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 		PpEnabledLayerNames:     instanceLayers,
 	}
 	// make possible detect KosmicKrisp and MoltenVK devices
-	if runtime.GOOS == MACOS {
+	if runtime.GOOS == OSMac {
 		instanceCreateInfo.Flags = vk.InstanceCreateFlags(vk.InstanceCreateEnumeratePortabilityBit)
 	}
 
@@ -94,6 +110,10 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 	if err != nil {
 		err = fmt.Errorf("vk.CreateInstance failed with %s", err)
 		return manager, err
+	}
+	if err = vk.InitInstance(manager.Instance); err != nil {
+		vk.DestroyInstance(manager.Instance, nil)
+		return Manager{}, err
 	}
 
 	// Phase 2: Create Surface and Device
@@ -131,18 +151,18 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 		QueueCount:       1,
 		PQueuePriorities: []float32{1.0},
 	}}
-	var deviceExtensions []string
+
 	if manager.Surface != vk.NullSurface {
 		deviceExtensions = append(deviceExtensions, vk.KhrSwapchainExtensionName)
 	}
-	if runtime.GOOS == MACOS && slices.Contains(existingExtensions, vk.KhrPortabilitySubsetExtensionName) {
+	if runtime.GOOS == OSMac && slices.Contains(existingExtensions, vk.KhrPortabilitySubsetExtensionName) {
 		deviceExtensions = append(deviceExtensions, vk.KhrPortabilitySubsetExtensionName)
 	}
-	if opts != nil {
-		for _, ext := range opts.DeviceExtensions {
-			deviceExtensions = append(deviceExtensions, ext)
-		}
+	if runtime.GOOS == OSAndroid {
+		deviceExtensions = append(deviceExtensions, vk.GoogleDisplayTimingExtensionName)
 	}
+	deviceExtensions = makeUniqueCStrings(deviceExtensions)
+
 	deviceCreateInfo := vk.DeviceCreateInfo{
 		SType:                   vk.StructureTypeDeviceCreateInfo,
 		QueueCreateInfoCount:    uint32(len(queueCreateInfos)),
@@ -168,7 +188,7 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 	}
 	vk.GetDeviceQueue(manager.Device, 0, 0, &manager.Queue)
 
-	if debug {
+	if debugSwitch {
 		dbgCreateInfo := vk.DebugReportCallbackCreateInfo{
 			SType:       vk.StructureTypeDebugReportCallbackCreateInfo,
 			Flags:       vk.DebugReportFlags(vk.DebugReportErrorBit | vk.DebugReportWarningBit),
@@ -185,7 +205,11 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 }
 
 func SetDebug(state bool) {
-	debug = state
+	debugSwitch = state
+}
+
+func SetValidations(state bool) {
+	validationLayersSwitch = state
 }
 
 func (v *Manager) GetDebugCallback() vk.DebugReportCallback {
@@ -326,7 +350,7 @@ func selectPhysicalDevice(gpus []vk.PhysicalDevice) vk.PhysicalDevice {
 		if i == 0 {
 			score += 100 // selected by vulkan as best
 		}
-		if runtime.GOOS == MACOS && strings.Contains(strings.ToLower(name), "kosmickrisp") {
+		if runtime.GOOS == OSMac && strings.Contains(strings.ToLower(name), "kosmickrisp") {
 			score += 500 // preferred before MoltenVK
 		}
 		fmt.Printf("Listed GPU: %s (type=%s, score=%d)\n", name, gpuTypes[gpuType], score)
