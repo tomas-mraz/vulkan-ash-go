@@ -155,7 +155,7 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 	if runtime.GOOS == OSMac && slices.Contains(existingExtensions, vk.KhrPortabilitySubsetExtensionName) {
 		deviceExtensions = append(deviceExtensions, vk.KhrPortabilitySubsetExtensionName)
 	}
-	if runtime.GOOS == OSAndroid {
+	if runtime.GOOS == OSAndroid && slices.Contains(existingExtensions, vk.GoogleDisplayTimingExtensionName) {
 		deviceExtensions = append(deviceExtensions, vk.GoogleDisplayTimingExtensionName)
 	}
 	deviceExtensions = makeUniqueCStrings(deviceExtensions)

@@ -14,14 +14,6 @@ type Destroyer interface {
 	Destroy()
 }
 
-func NewCleanup(manager *Manager) Cleanup {
-	cleanup := Cleanup{
-		manager: manager,
-	}
-	cleanup.Add(manager)
-	return cleanup
-}
-
 // Add registers a destroyable object. Objects run in reverse order on Destroy.
 func (d *Cleanup) Add(object Destroyer) {
 	d.destroyableObject = append(d.destroyableObject, object)
