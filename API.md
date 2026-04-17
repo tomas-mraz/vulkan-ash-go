@@ -279,7 +279,6 @@ Frees the buffer that stores the shader binding table.
 | [`NewExtentSize`](#newextentsize)                                   | common        | Creates a `vk.Extent2D` from `int` dimensions.                 |
 | [`GetDeviceExtensions`](#getdeviceextensions)                       | common        | Returns device extension names supported by the GPU.           |
 | [`CheckDeviceExtensions`](#checkdeviceextensions)                   | common        | Verifies that the GPU supports required extensions.            |
-| [`CheckDeviceApiVersion`](#checkdeviceapiversion)                   | common        | Verifies the minimum Vulkan API version of the GPU.            |
 | [`NewDevice`](#newdevice)                                           | common        | Creates the basic Vulkan instance/device/surface context.      |
 | [`NewDeviceWithOptions`](#newdevicewithoptions)                     | common        | Creates a Vulkan context with advanced options.                |
 | [`NewAndroidSurface`](#newandroidsurface)                           | Android       | Creates an Android surface from a native window.               |
@@ -574,12 +573,6 @@ Reads the supported device extensions of a physical GPU. The returned names do n
 `func CheckDeviceExtensions(gpu vk.PhysicalDevice, required []string) (ok bool, missing []string)`
 
 Compares a required extension list with the actually available extensions and returns the missing ones. It also accepts input names that end with `\x00`.
-
-<a id="checkdeviceapiversion"></a>
-### `CheckDeviceApiVersion`
-`func CheckDeviceApiVersion(gpu vk.PhysicalDevice, minVersion uint32) (ok bool, deviceVersion uint32)`
-
-Checks whether the physical GPU supports at least the requested Vulkan API version. It also returns the actual device version for diagnostics.
 
 <a id="newdevice"></a>
 ### `NewDevice`

@@ -295,15 +295,6 @@ func CheckDeviceExtensions(gpu vk.PhysicalDevice, required []string) (ok bool, m
 	return len(missing) == 0, missing
 }
 
-// CheckDeviceApiVersion returns true if the physical device supports at least
-// the given Manager API version (created via vk.MakeVersion).
-func CheckDeviceApiVersion(gpu vk.PhysicalDevice, minVersion uint32) (ok bool, deviceVersion uint32) {
-	var props vk.PhysicalDeviceProperties
-	vk.GetPhysicalDeviceProperties(gpu, &props)
-	props.Deref()
-	return props.ApiVersion >= minVersion, props.ApiVersion
-}
-
 // RequireInstanceApiVersion ensures the installed Vulkan loader supports at
 // least minVersion. Must be called after vk.Init — i.e. after Host.InitVulkan
 // or its manual equivalent — because it depends on the dispatch table.
