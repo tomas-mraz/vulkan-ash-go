@@ -51,7 +51,7 @@ func (h *desktopHost) Start() error {
 		return fmt.Errorf("glfw.Init: %w", err)
 	}
 	glfw.WindowHint(glfw.ClientAPI, glfw.NoAPI)
-	glfw.WindowHint(glfw.Resizable, glfw.False)
+	glfw.WindowHint(glfw.Resizable, glfw.True)
 
 	w, err := glfw.CreateWindow(h.width, h.height, h.title, nil, nil)
 	if err != nil {
@@ -73,6 +73,28 @@ func (h *desktopHost) Start() error {
 		}
 		select {
 		case h.events <- HostEvent{Kind: kind}:
+		default:
+		}
+	})
+
+	// Framebuffer-size callback triggers an explicit swapchain rebuild on
+	// window resize. Without it the Session would still react on the next
+	// SUBOPTIMAL/OUT_OF_DATE from the driver, but one frame could render
+	// stretched during a drag-resize.
+	//
+	// Zero extent is dropped: on some compositors (Wayland) the framebuffer
+	// callback fires (0, 0) immediately before the iconify callback flips the
+	// window to minimized. The Pause that follows gates rendering anyway, and
+	// recreating with zero-extent would just fail inside vkCreateSwapchain.
+	w.SetFramebufferSizeCallback(func(_ *glfw.Window, width, height int) {
+		if width <= 0 || height <= 0 {
+			return
+		}
+		select {
+		case h.events <- HostEvent{
+			Kind:   HostEventSurfaceInvalidated,
+			Extent: vk.Extent2D{Width: uint32(width), Height: uint32(height)},
+		}:
 		default:
 		}
 	})
