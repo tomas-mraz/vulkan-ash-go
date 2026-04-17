@@ -32,6 +32,27 @@ func NewSwapchain(manager *Manager, windowSize vk.Extent2D) (Swapchain, error) {
 	return newSwapchain(manager, windowSize, vk.NullSwapchain)
 }
 
+// Recreate rebuilds this Swapchain in place with a new target size. The
+// previous swapchain handle is passed to the driver as oldSwapchain for an
+// efficient handover of underlying images, then destroyed. On success the
+// receiver's fields (Swapchains, DisplaySize, DisplayFormat, PreTransform,
+// framebuffers) reflect the newly created swapchain.
+//
+// The caller is responsible for ensuring no command buffer in flight still
+// references the old swapchain's framebuffers (typically vk.DeviceWaitIdle
+// before calling) and for rebuilding any size-dependent resources
+// (framebuffers, depth image, pipelines) after return.
+func (s *Swapchain) Recreate(windowSize vk.Extent2D) error {
+	old := *s
+	ns, err := newSwapchain(s.manager, windowSize, old.DefaultSwapchain())
+	if err != nil {
+		return err
+	}
+	old.Destroy()
+	*s = ns
+	return nil
+}
+
 func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swapchain) (Swapchain, error) {
 
 	// Phase 1: vk.GetPhysicalDeviceSurfaceCapabilities

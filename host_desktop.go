@@ -37,6 +37,15 @@ func NewDesktopHost(width, height int, title string) Host {
 	}
 }
 
+// NewDesktopSurface is a GLFW helper for creating a Vulkan surface.
+func NewDesktopSurface(instance vk.Instance, window *glfw.Window) (vk.Surface, error) {
+	surfacePointer, err := window.CreateWindowSurface(instance, nil)
+	if err != nil {
+		return vk.NullSurface, err
+	}
+	return vk.SurfaceFromPointer(surfacePointer), nil
+}
+
 func (h *desktopHost) Start() error {
 	if err := glfw.Init(); err != nil {
 		return fmt.Errorf("glfw.Init: %w", err)

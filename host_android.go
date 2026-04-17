@@ -49,6 +49,16 @@ func NewAndroidHost(a app.NativeActivity) Host {
 	}
 }
 
+// NewAndroidSurface is an Android helper to get Vulkan surface.
+func NewAndroidSurface(instance vk.Instance, windowPointer uintptr) (vk.Surface, error) {
+	var surface vk.Surface
+	err := vk.Error(vk.CreateWindowSurface(instance, windowPointer, nil, &surface))
+	if err != nil {
+		return vk.NullSurface, err
+	}
+	return surface, nil
+}
+
 func (h *androidHost) Start() error {
 	if h.started {
 		return nil

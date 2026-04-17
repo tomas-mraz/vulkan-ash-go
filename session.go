@@ -3,7 +3,7 @@ package ash
 import (
 	"fmt"
 	"log/slog"
-	"runtime"
+	"sync/atomic"
 
 	vk "github.com/tomas-mraz/vulkan"
 )
@@ -64,13 +64,13 @@ type Renderer interface {
 
 // SessionOptions configures device creation for NewSession.
 type SessionOptions struct {
-	DeviceOptions   *DeviceOptions
-	EnableTiming    bool // enable VK_GOOGLE_display_timing when available
-	FrameSubmitWait uint64
+	DeviceOptions *DeviceOptions
+	EnableTiming  bool // enable VK_GOOGLE_display_timing when available
 }
 
 // Session owns the whole Vulkan stack (instance, device, swapchain, command
-// pool, sync objects) and orchestrates the render loop on top of a Host.
+// pool, sync objects, display timing) and orchestrates the render loop on top
+// of a Host. It is the single object a Renderer talks to.
 //
 // Typical usage:
 //
@@ -89,10 +89,15 @@ type Session struct {
 	// Populated while the device is alive.
 	Manager       *Manager
 	Swapchain     *Swapchain
-	Ctx           *SwapchainContext
 	CmdCtx        *CommandContext
 	Sync          *SyncInfo
 	DisplayTiming *DisplayTiming
+
+	// needsRecreate is atomic because producers (platform event threads, e.g.
+	// Android's NativeWindowRedrawNeeded demux goroutine) flip it while the
+	// render goroutine observes it at frame boundaries. AcquireNextImage and
+	// PresentImage set it to true when the driver reports SUBOPTIMAL / OUT_OF_DATE.
+	needsRecreate atomic.Bool
 
 	// running is true between "device + swapchain built" and "surface lost".
 	running bool
@@ -151,7 +156,7 @@ func (s *Session) Run(r Renderer) error {
 		// Active path: drain any pending events without blocking, pump the
 		// platform, then render one frame. glfw.PollEvents must run on the
 		// main goroutine, which is where Run is executing.
-		drainLoop:
+	drainLoop:
 		for {
 			select {
 			case ev, ok := <-events:
@@ -212,7 +217,7 @@ func (s *Session) handleEvent(ev HostEvent, r Renderer) (done bool, err error) {
 		if s.running {
 			// A second Available without a Lost in between: treat it like a
 			// redraw-needed and force recreation rather than full teardown.
-			s.Ctx.RequestRecreate()
+			s.RequestRecreate()
 			return false, nil
 		}
 		if err := s.setupDevice(r, ev.Extent); err != nil {
@@ -226,7 +231,7 @@ func (s *Session) handleEvent(ev HostEvent, r Renderer) (done bool, err error) {
 
 	case HostEventSurfaceInvalidated:
 		if s.running {
-			s.Ctx.RequestRecreate()
+			s.RequestRecreate()
 		}
 		return false, nil
 
@@ -253,8 +258,8 @@ func (s *Session) handleEvent(ev HostEvent, r Renderer) (done bool, err error) {
 }
 
 // setupDevice is the full initial-bringup path:
-// InitVulkan → Manager → Swapchain → SwapchainContext → CmdCtx → Sync →
-// DisplayTiming → Renderer.CreateOnce → Renderer.CreateSized.
+// InitVulkan → Manager → Swapchain → CmdCtx → Sync → DisplayTiming →
+// Renderer.CreateOnce → Renderer.CreateSized.
 // On any failure all partial state is rolled back and running stays false.
 func (s *Session) setupDevice(r Renderer, hint vk.Extent2D) (err error) {
 	if err := s.Host.InitVulkan(); err != nil {
@@ -296,9 +301,6 @@ func (s *Session) setupDevice(r Renderer, hint vk.Extent2D) (err error) {
 	}
 	s.Swapchain = &swap
 
-	ctx := NewSwapchainContext(&mgr, s.Swapchain)
-	s.Ctx = &ctx
-
 	cmdCtx, err := NewCommandContext(mgr.Device, 0, s.Swapchain.DefaultSwapchainLen())
 	if err != nil {
 		return fmt.Errorf("NewCommandContext: %w", err)
@@ -318,7 +320,6 @@ func (s *Session) setupDevice(r Renderer, hint vk.Extent2D) (err error) {
 		if ok, _ := CheckDeviceExtensions(mgr.Gpu, []string{vk.GoogleDisplayTimingExtensionName}); ok {
 			dt := NewDisplayTiming(mgr.Device, s.Swapchain.DefaultSwapchain())
 			s.DisplayTiming = &dt
-			s.Ctx.SetDisplayTiming(s.DisplayTiming)
 		}
 	}
 
@@ -361,8 +362,8 @@ func (s *Session) teardownDevice(r Renderer) {
 		s.Swapchain.Destroy()
 		s.Swapchain = nil
 	}
-	s.Ctx = nil
 	s.DisplayTiming = nil
+	s.needsRecreate.Store(false)
 	if s.Manager != nil {
 		s.Manager.Destroy()
 		s.Manager = nil
@@ -373,13 +374,13 @@ func (s *Session) teardownDevice(r Renderer) {
 // Renderer.Draw, EndFrame, submit, present.
 func (s *Session) renderFrame(r Renderer) error {
 	// Before acquire: honor any pending recreation request.
-	if s.Ctx.NeedsRecreate() {
+	if s.NeedsRecreate() {
 		if err := s.recreateSwapchain(r); err != nil {
 			return fmt.Errorf("recreateSwapchain(pre): %w", err)
 		}
 	}
 
-	imageIndex, acquired, err := s.Ctx.AcquireNextImage(vk.MaxUint64, s.Sync.Semaphore, vk.NullFence)
+	imageIndex, acquired, err := s.AcquireNextImage(vk.MaxUint64, s.Sync.Semaphore, vk.NullFence)
 	if err != nil {
 		return fmt.Errorf("AcquireNextImage: %w", err)
 	}
@@ -391,7 +392,7 @@ func (s *Session) renderFrame(r Renderer) error {
 		return nil
 	}
 
-	cmd, err := s.Ctx.BeginFrame(imageIndex, s.CmdCtx)
+	cmd, err := s.BeginFrame(imageIndex)
 	if err != nil {
 		return fmt.Errorf("BeginFrame: %w", err)
 	}
@@ -404,17 +405,17 @@ func (s *Session) renderFrame(r Renderer) error {
 	}
 	if err := r.Draw(s, frame); err != nil {
 		// Still close the command buffer cleanly so Vulkan doesn't complain.
-		_ = s.Ctx.EndFrame(cmd)
+		_ = s.EndFrame(cmd)
 		return fmt.Errorf("renderer.Draw: %w", err)
 	}
 
-	if err := s.Ctx.EndFrame(cmd); err != nil {
+	if err := s.EndFrame(cmd); err != nil {
 		return fmt.Errorf("EndFrame: %w", err)
 	}
-	if err := s.Ctx.SubmitRender(cmd, s.Sync.Fence, []vk.Semaphore{s.Sync.Semaphore}); err != nil {
+	if err := s.SubmitRender(cmd, s.Sync.Fence, []vk.Semaphore{s.Sync.Semaphore}); err != nil {
 		return fmt.Errorf("SubmitRender: %w", err)
 	}
-	if _, err := s.Ctx.PresentImage(imageIndex, nil); err != nil {
+	if _, err := s.PresentImage(imageIndex, nil); err != nil {
 		return fmt.Errorf("PresentImage: %w", err)
 	}
 	return nil
@@ -423,13 +424,10 @@ func (s *Session) renderFrame(r Renderer) error {
 // recreateSwapchain runs the full sized-resource rebuild:
 //   - wait device idle
 //   - Renderer.DestroySized
-//   - build new swapchain (keeps old handle as OldSwapchain)
+//   - Swapchain.Recreate (rebuilds vk.Swapchain with old as handover hint)
+//   - AckRecreate + DisplayTiming.Rebind
 //   - rebuild command context for the new swapchain length
 //   - Renderer.CreateSized with the new extent
-//
-// Kept outside the framework's SwapchainContext.Recreate callback API because
-// the Session owns more of the state (CmdCtx, Renderer lifecycle) than that
-// callback was designed for.
 func (s *Session) recreateSwapchain(r Renderer) error {
 	if s.Manager == nil || s.Swapchain == nil {
 		return fmt.Errorf("recreateSwapchain: session not set up")
@@ -449,8 +447,12 @@ func (s *Session) recreateSwapchain(r Renderer) error {
 	}
 	hint = s.Manager.QuerySurfaceExtent(hint)
 
-	if err := s.Ctx.Recreate(hint, nil); err != nil {
-		return fmt.Errorf("Ctx.Recreate: %w", err)
+	if err := s.Swapchain.Recreate(hint); err != nil {
+		return fmt.Errorf("Swapchain.Recreate: %w", err)
+	}
+	s.AckRecreate()
+	if s.DisplayTiming != nil {
+		s.DisplayTiming.Rebind(s.Swapchain.DefaultSwapchain())
 	}
 
 	// Rebuild cmd context — swapchain length may have changed (it usually
@@ -468,8 +470,139 @@ func (s *Session) recreateSwapchain(r Renderer) error {
 	return nil
 }
 
-// Yield gives other goroutines a chance to run. Called from idle paths to
-// avoid hot-spinning while waiting for platform events.
-func (s *Session) Yield() {
-	runtime.Gosched()
+// ------- Frame orchestration (previously SwapchainContext) -------
+
+// NeedsRecreate reports whether AcquireNextImage or PresentImage observed that
+// the swapchain is suboptimal/out-of-date, or whether recreation was requested
+// explicitly via RequestRecreate. Safe to call from any goroutine.
+func (s *Session) NeedsRecreate() bool {
+	return s.needsRecreate.Load()
+}
+
+// RequestRecreate marks the swapchain as needing recreation on the next frame
+// boundary. Safe to call from any goroutine; typically invoked by the platform
+// event loop when it observes a window size / orientation change (Android
+// NativeWindowRedrawNeeded).
+func (s *Session) RequestRecreate() {
+	s.needsRecreate.Store(true)
+}
+
+// AckRecreate clears the recreate flag after a rebuild is complete. Called by
+// recreateSwapchain; exposed for renderers that need a hand-rolled rebuild.
+func (s *Session) AckRecreate() {
+	s.needsRecreate.Store(false)
+}
+
+// AcquireNextImage acquires the next swapchain image and classifies WSI warnings.
+// SUBOPTIMAL: acquisition succeeds and NeedsRecreate flips true.
+// OUT_OF_DATE: no image is acquired and NeedsRecreate flips true.
+func (s *Session) AcquireNextImage(timeout uint64, semaphore vk.Semaphore, fence vk.Fence) (imageIndex uint32, acquired bool, err error) {
+	if s.Swapchain == nil || len(s.Swapchain.Swapchains) == 0 {
+		return 0, false, fmt.Errorf("session has no swapchain")
+	}
+	result := vk.AcquireNextImage(s.Manager.Device, s.Swapchain.DefaultSwapchain(), timeout, semaphore, fence, &imageIndex)
+	acquired, recreate, err := classifySwapchainResult(result)
+	if recreate {
+		s.needsRecreate.Store(true)
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("vk.AcquireNextImage: %w", err)
+	}
+	return imageIndex, acquired, nil
+}
+
+// PresentImage presents the rendered image and classifies WSI warnings.
+// SUBOPTIMAL: presents successfully but requests recreation.
+// OUT_OF_DATE: skips presentation and requests recreation.
+func (s *Session) PresentImage(imageIndex uint32, waitSemaphores []vk.Semaphore) (presented bool, err error) {
+	if s.Swapchain == nil || len(s.Swapchain.Swapchains) == 0 {
+		return false, fmt.Errorf("session has no swapchain")
+	}
+	presentInfo := vk.PresentInfo{
+		SType:              vk.StructureTypePresentInfo,
+		WaitSemaphoreCount: uint32(len(waitSemaphores)),
+		PWaitSemaphores:    waitSemaphores,
+		SwapchainCount:     1,
+		PSwapchains:        []vk.Swapchain{s.Swapchain.DefaultSwapchain()},
+		PImageIndices:      []uint32{imageIndex},
+	}
+	if s.DisplayTiming != nil {
+		s.DisplayTiming.ChainPresentInfo(&presentInfo)
+	}
+	result := vk.QueuePresent(s.Manager.Queue, &presentInfo)
+	presented, recreate, err := classifySwapchainResult(result)
+	if recreate {
+		s.needsRecreate.Store(true)
+	}
+	if err != nil {
+		return false, fmt.Errorf("vk.QueuePresent: %w", err)
+	}
+	return presented, nil
+}
+
+// BeginFrame resets and begins the command buffer for the given swapchain image.
+func (s *Session) BeginFrame(imageIndex uint32) (vk.CommandBuffer, error) {
+	cmdBuffers := s.CmdCtx.GetCmdBuffers()
+	if int(imageIndex) >= len(cmdBuffers) {
+		var zero vk.CommandBuffer
+		return zero, fmt.Errorf("command buffer index %d out of range %d", imageIndex, len(cmdBuffers))
+	}
+	cmd := cmdBuffers[imageIndex]
+	if err := vk.Error(vk.ResetCommandBuffer(cmd, 0)); err != nil {
+		var zero vk.CommandBuffer
+		return zero, fmt.Errorf("ResetCommandBuffer: %w", err)
+	}
+	if err := vk.Error(vk.BeginCommandBuffer(cmd, &vk.CommandBufferBeginInfo{
+		SType: vk.StructureTypeCommandBufferBeginInfo,
+	})); err != nil {
+		var zero vk.CommandBuffer
+		return zero, fmt.Errorf("BeginCommandBuffer: %w", err)
+	}
+	return cmd, nil
+}
+
+// EndFrame finalizes command buffer recording.
+func (s *Session) EndFrame(cmd vk.CommandBuffer) error {
+	if err := vk.Error(vk.EndCommandBuffer(cmd)); err != nil {
+		return fmt.Errorf("EndCommandBuffer: %w", err)
+	}
+	return nil
+}
+
+// SubmitRender submits the recorded command buffer and waits for the fence.
+func (s *Session) SubmitRender(cmd vk.CommandBuffer, fence vk.Fence, waitSemaphores []vk.Semaphore) error {
+	fences := []vk.Fence{fence}
+	var waitStages []vk.PipelineStageFlags
+	if len(waitSemaphores) > 0 {
+		waitStages = []vk.PipelineStageFlags{vk.PipelineStageFlags(vk.PipelineStageColorAttachmentOutputBit)}
+	}
+	vk.ResetFences(s.Manager.Device, 1, fences)
+	if err := vk.Error(vk.QueueSubmit(s.Manager.Queue, 1, []vk.SubmitInfo{{
+		SType:              vk.StructureTypeSubmitInfo,
+		WaitSemaphoreCount: uint32(len(waitSemaphores)),
+		PWaitSemaphores:    waitSemaphores,
+		PWaitDstStageMask:  waitStages,
+		CommandBufferCount: 1,
+		PCommandBuffers:    []vk.CommandBuffer{cmd},
+	}}, fence)); err != nil {
+		return fmt.Errorf("QueueSubmit: %w", err)
+	}
+	const timeoutNano = 10 * 1000 * 1000 * 1000
+	if err := vk.Error(vk.WaitForFences(s.Manager.Device, 1, fences, vk.True, timeoutNano)); err != nil {
+		return fmt.Errorf("WaitForFences: %w", err)
+	}
+	return nil
+}
+
+func classifySwapchainResult(result vk.Result) (ok bool, recreate bool, err error) {
+	switch result {
+	case vk.Success:
+		return true, false, nil
+	case vk.Suboptimal:
+		return true, true, nil
+	case vk.ErrorOutOfDate:
+		return false, true, nil
+	default:
+		return false, false, vk.Error(result)
+	}
 }
