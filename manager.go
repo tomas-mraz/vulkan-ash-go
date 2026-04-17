@@ -139,7 +139,12 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 		aaa.Free()
 	}
 
-	manager.Gpu = selectPhysicalDevice(gpuDevices)
+	manager.Gpu, err = selectPhysicalDevice(gpuDevices, apiVersion)
+	if err != nil {
+		vk.DestroySurface(manager.Instance, manager.Surface, nil)
+		vk.DestroyInstance(manager.Instance, nil)
+		return Manager{}, err
+	}
 	existingExtensions = GetDeviceExtensions(manager.Gpu)
 	slog.Debug(fmt.Sprintf("Device extensions: %v", existingExtensions))
 
@@ -355,26 +360,31 @@ func getPhysicalDevices(instance vk.Instance) ([]vk.PhysicalDevice, error) {
 	return gpuList, nil
 }
 
-func selectPhysicalDevice(gpus []vk.PhysicalDevice) vk.PhysicalDevice {
-	bestGPU := gpus[0]
+// selectPhysicalDevice scores each enumerated GPU and returns the best match.
+// When minApiVersion > 0, GPUs whose VkPhysicalDeviceProperties.apiVersion is
+// below the threshold are excluded from selection — they're still listed in
+// the log with a [skipped: ...] marker so the failure is diagnosable — and if
+// no GPU qualifies the function returns an error instead of a silent fallback.
+// This keeps ray tracing and other version-gated apps from proceeding with a
+// GPU that would fail at vkCreateDevice time.
+func selectPhysicalDevice(gpus []vk.PhysicalDevice, minApiVersion uint32) (vk.PhysicalDevice, error) {
+	var bestGPU vk.PhysicalDevice
 	bestName := ""
 	bestType := vk.PhysicalDeviceTypeOther
-	bestScore := 0
+	bestScore := -1
 
 	gpuTypes := []string{"Other", "Integrated GPU", "Discrete GPU", "Virtual GPU", "CPU"}
 
-	var name string
-	var gpuType vk.PhysicalDeviceType
-	var score int
-	// Vulkan put better gpu on the beginning of the list => same score does not win
+	// Vulkan puts the preferred GPU first in the list; an equal-score tie
+	// therefore goes to the first candidate.
 	for i, gpu := range gpus {
 		var props vk.PhysicalDeviceProperties
 		vk.GetPhysicalDeviceProperties(gpu, &props)
 		props.Deref()
 
-		name = vk.ToString(props.DeviceName[:])
-		gpuType = props.DeviceType
-		score = 0
+		name := vk.ToString(props.DeviceName[:])
+		gpuType := props.DeviceType
+		score := 0
 
 		switch props.ApiVersion {
 		case vk.ApiVersion13:
@@ -396,19 +406,36 @@ func selectPhysicalDevice(gpus []vk.PhysicalDevice) vk.PhysicalDevice {
 		if runtime.GOOS == OSMac && strings.Contains(strings.ToLower(name), "kosmickrisp") {
 			score += 500 // preferred before MoltenVK
 		}
-		fmt.Printf("Listed GPU: %s (type=%s, score=%d)\n", name, gpuTypes[gpuType], score)
 
+		skipReason := ""
+		if minApiVersion > 0 && props.ApiVersion < minApiVersion {
+			skipReason = fmt.Sprintf(" [skipped: API %s < required %s]",
+				vk.Version(props.ApiVersion), vk.Version(minApiVersion))
+		}
+		fmt.Printf("Listed GPU: %s (type=%s, API=%s, score=%d)%s\n",
+			name, gpuTypes[gpuType], vk.Version(props.ApiVersion), score, skipReason)
+
+		props.Free()
+
+		if skipReason != "" {
+			continue
+		}
 		if score > bestScore {
 			bestGPU = gpu
 			bestName = name
 			bestType = gpuType
 			bestScore = score
 		}
-		props.Free()
+	}
+
+	if bestScore < 0 {
+		return bestGPU, fmt.Errorf(
+			"no GPU satisfies required Vulkan API version %s",
+			vk.Version(minApiVersion))
 	}
 
 	fmt.Printf("Selected GPU: %s (type=%s, score=%d)\n", bestName, gpuTypes[bestType], bestScore)
-	return bestGPU
+	return bestGPU, nil
 }
 
 func dbgCallbackFunc(flags vk.DebugReportFlags, objectType vk.DebugReportObjectType, object uint64, location uint64, messageCode int32, pLayerPrefix string, pMessage string, pUserData unsafe.Pointer) vk.Bool32 {
