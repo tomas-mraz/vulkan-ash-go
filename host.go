@@ -23,6 +23,20 @@ const (
 	// Session responds by requesting a swapchain recreation at the next frame.
 	HostEventSurfaceInvalidated
 
+	// HostEventPause signals that the app has been backgrounded and must stop
+	// issuing GPU work. The Vulkan device and swapchain remain valid — this is
+	// a soft signal, orthogonal to surface lifetime. Android emits it on
+	// onPause; the Session waits for the device to become idle and then gates
+	// the render loop until HostEventResume arrives. If the platform later
+	// destroys the surface while paused, HostEventSurfaceLost follows normally.
+	HostEventPause
+
+	// HostEventResume signals that the app has been foregrounded. The Session
+	// un-gates the render loop. If the swapchain changed during the pause
+	// (e.g. rotation while backgrounded), a HostEventSurfaceInvalidated is
+	// emitted separately.
+	HostEventResume
+
 	// HostEventClose signals that the user or OS asked the app to exit.
 	HostEventClose
 )

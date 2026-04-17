@@ -74,9 +74,16 @@ func (h *androidHost) demux() {
 	for {
 		select {
 		case ev := <-h.activity.LifecycleEvents():
-			if ev.Kind == app.OnDestroy {
+			switch ev.Kind {
+			case app.OnDestroy:
 				h.events <- HostEvent{Kind: HostEventClose}
 				return
+			case app.OnPause:
+				// Activity is backgrounded but the surface is still valid.
+				// Session quiesces GPU work until a matching OnResume.
+				h.events <- HostEvent{Kind: HostEventPause}
+			case app.OnResume:
+				h.events <- HostEvent{Kind: HostEventResume}
 			}
 
 		case ev := <-h.inputQueueEvents:

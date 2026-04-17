@@ -96,6 +96,12 @@ type Session struct {
 
 	// running is true between "device + swapchain built" and "surface lost".
 	running bool
+
+	// paused gates the render loop while the activity is backgrounded. Independent
+	// of running: the device/swapchain stay alive through pause/resume cycles so
+	// that foregrounding doesn't pay a full re-init cost, and rendering resumes
+	// from the same Renderer state.
+	paused bool
 }
 
 // NewSession returns a Session bound to the given Host. NewSession does not
@@ -121,8 +127,10 @@ func (s *Session) Run(r Renderer) error {
 
 	events := s.Host.Events()
 	for {
-		if !s.running {
-			// Idle path: nothing to render, block on the next event.
+		// Idle path applies when there is nothing to render: either the device
+		// isn't set up yet, or the activity is paused. Block on the next event
+		// so the goroutine doesn't spin and no GPU work is issued.
+		if !s.running || s.paused {
 			select {
 			case ev, ok := <-events:
 				if !ok {
@@ -158,7 +166,7 @@ func (s *Session) Run(r Renderer) error {
 				if done {
 					return nil
 				}
-				if !s.running {
+				if !s.running || s.paused {
 					break drainLoop
 				}
 			default:
@@ -183,7 +191,7 @@ func (s *Session) Run(r Renderer) error {
 		default:
 		}
 
-		if !s.running {
+		if !s.running || s.paused {
 			continue
 		}
 
@@ -220,6 +228,21 @@ func (s *Session) handleEvent(ev HostEvent, r Renderer) (done bool, err error) {
 		if s.running {
 			s.Ctx.RequestRecreate()
 		}
+		return false, nil
+
+	case HostEventPause:
+		// Quiesce the GPU so in-flight work finishes before we stop submitting.
+		// Device and swapchain stay alive — resume picks up from the same state.
+		// If the surface is later lost while paused, the normal SurfaceLost path
+		// still tears everything down.
+		if s.running && s.Manager != nil {
+			vk.DeviceWaitIdle(s.Manager.Device)
+		}
+		s.paused = true
+		return false, nil
+
+	case HostEventResume:
+		s.paused = false
 		return false, nil
 
 	case HostEventClose:
