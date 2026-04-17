@@ -60,6 +60,23 @@ func (h *desktopHost) Start() error {
 	}
 	h.window = w
 
+	// Iconify callback bridges GLFW's minimize state to the same Pause/Resume
+	// signal the Android host emits on onPause/onResume. GLFW invokes the
+	// callback from inside glfw.PollEvents (main goroutine), so the channel
+	// send is safe. A non-blocking send avoids wedging the main thread if the
+	// consumer is momentarily slow to drain — the Session drains each loop
+	// iteration, so a 4-slot buffer handles realistic bursts.
+	w.SetIconifyCallback(func(_ *glfw.Window, iconified bool) {
+		kind := HostEventResume
+		if iconified {
+			kind = HostEventPause
+		}
+		select {
+		case h.events <- HostEvent{Kind: kind}:
+		default:
+		}
+	})
+
 	// The window is immediately usable; surface creation happens lazily when
 	// the Session calls CreateSurface. Signal readiness upfront so Run can
 	// kick off Vulkan setup.
