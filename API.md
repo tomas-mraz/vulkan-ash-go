@@ -4,41 +4,85 @@ Public API of the `ash` package. The overview below is split into exported struc
 
 ## Rasterization object overview
 
+Orchestration flows top-down: the platform **Host** feeds lifecycle events into
+the **Session**, which owns the full Vulkan stack (Manager, Swapchain,
+CommandContext, SyncInfo, optionally DisplayTiming). The user implements
+**Renderer** and receives `CreateOnce` / `CreateSized` / `Draw` / `DestroySized` /
+`DestroyOnce` callbacks plus a per-frame **Frame** value. Typical rasterization
+resources (render pass, pipeline, depth buffer, descriptor set, uniforms,
+textures) live inside the Renderer and are split into "once" (device-lifetime)
+and "sized" (swapchain-generation) buckets.
+
 ```mermaid
 graph TD
-    M["<b>Manager</b><br/>Instance, Device<br/>Surface, GPU, Queue"]
+    subgraph Platform
+        H["<b>Host</b> <i>(interface)</i><br/>Desktop: GLFW<br/>Android: app.NativeActivity"]
+    end
 
-    SW["<b>Swapchain</b><br/>Swapchain, ImageViews<br/>Framebuffers"]
-    RP["<b>RasterizationPass</b><br/>RenderPass"]
-    PR["<b>PipelineRasterization</b><br/>Pipeline, Layout, Cache"]
-    CC["<b>CommandContext</b><br/>CommandPool<br/>CommandBuffers"]
+    subgraph "User code"
+        R["<b>Renderer</b> <i>(interface)</i><br/>CreateOnce / CreateSized / Draw<br/>DestroySized / DestroyOnce"]
+    end
 
-    DI["<b>DescriptorInfo</b><br/>Layout, Pool, Sets"]
-    UB["<b>UniformBuffers</b><br/>per-frame Buffers"]
-    IR["<b>ImageResource</b><br/>Image, View, Sampler"]
-    IB["<b>VulkanIndexBufferInfo</b><br/>IndexBuffer, Count"]
-    SY["<b>SyncInfo</b><br/>Fence, Semaphore"]
-    M -->|"*Manager"| SW
-    M -->|"device, format"| RP
-    M -->|"device, queueFamily"| CC
-    M -->|"device"| SY
-    RP -->|"renderPass + depthView"| SW
-    SW -->|"displaySize"| PR
-    RP -->|"renderPass"| PR
-    DI -->|"descriptorSetLayouts"| PR
+    subgraph "Session (framework-owned)"
+        S["<b>Session</b><br/>Run state machine<br/>(running, paused, needsRecreate)"]
+        M["<b>Manager</b><br/>Instance, Device,<br/>Surface, GPU, Queue"]
+        SW["<b>Swapchain</b><br/>Swapchain, ImageViews,<br/>Framebuffers"]
+        CC["<b>CommandContext</b><br/>CommandPool,<br/>CommandBuffers"]
+        SY["<b>SyncInfo</b><br/>Fence, Semaphore"]
+        DT["<b>DisplayTiming</b><br/>VK_GOOGLE_display_timing<br/>(Android only, optional)"]
+        F["<b>Frame</b><br/>Cmd, ImageIndex,<br/>Extent, Swapchain"]
+    end
+
+    subgraph "Renderer resources (typical)"
+        RP["<b>RasterizationPass</b><br/>RenderPass"]
+        PR["<b>PipelineRasterization</b><br/>Pipeline, Layout, Cache"]
+        DP["<b>ImageResource</b><br/>depth buffer"]
+        DI["<b>DescriptorInfo</b><br/>Layout, Pool, Sets"]
+        UB["<b>UniformBuffers</b><br/>per-frame Buffers"]
+        IR["<b>ImageResource</b><br/>texture"]
+    end
+
+    H -->|"HostEvents()"| S
+    S -->|"owns"| M
+    S -->|"owns"| SW
+    S -->|"owns"| CC
+    S -->|"owns"| SY
+    S -->|"owns (opt.)"| DT
+
+    S -->|"lifecycle callbacks"| R
+    S -->|"builds each frame"| F
+    F -->|"Draw(s, f)"| R
+
+    R -->|"CreateOnce"| IR
+    R -->|"CreateOnce"| UB
+    R -->|"CreateOnce"| DI
+    R -->|"CreateSized"| DP
+    R -->|"CreateSized"| RP
+    R -->|"CreateSized"| PR
+
     UB -->|"binding"| DI
     IR -->|"binding"| DI
+    DI -->|"setLayouts"| PR
+    RP -->|"renderPass"| PR
+    SW -->|"extent"| PR
+    DP -->|"depthView"| RP
+    RP -->|"attachments"| SW
 
-    style M fill:#4a90d9,color:#fff
+    style H fill:#3a7fb8,color:#fff
+    style R fill:#b070d0,color:#fff
+    style S fill:#4a90d9,color:#fff
+    style F fill:#808080,color:#fff
+    style M fill:#6aa8d9,color:#fff
     style SW fill:#50b87a,color:#fff
+    style CC fill:#9b6ed0,color:#fff
+    style SY fill:#9b6ed0,color:#fff
+    style DT fill:#78c898,color:#fff
     style RP fill:#50b87a,color:#fff
     style PR fill:#e8a838,color:#fff
-    style CC fill:#9b6ed0,color:#fff
+    style DP fill:#e88888,color:#fff
     style DI fill:#e06060,color:#fff
     style UB fill:#e88888,color:#fff
     style IR fill:#e88888,color:#fff
-    style IB fill:#e88888,color:#fff
-    style SY fill:#9b6ed0,color:#fff
 ```
 
 ## Raytracing object overview
