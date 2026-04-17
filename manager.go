@@ -67,11 +67,8 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 		PEngineName:        []byte("no engine\x00"),
 	}
 
-	existingExtensions := getInstanceExtensions()
-	slog.Debug(fmt.Sprintf("Instance have extensions: %v", existingExtensions))
-
-	//instanceExtensions := vk.GetRequiredInstanceExtensions()
 	if debugSwitch {
+		slog.Debug(fmt.Sprintf("Instance has extensions: %v", getInstanceExtensions()))
 		instanceExtensions = append(instanceExtensions, vk.ExtDebugReportExtensionName)
 	}
 	if runtime.GOOS == OSMac {
@@ -139,14 +136,32 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 		aaa.Free()
 	}
 
-	manager.Gpu, err = selectPhysicalDevice(gpuDevices, apiVersion)
+	var gpuName string
+	manager.Gpu, gpuName, err = selectPhysicalDevice(gpuDevices, apiVersion)
 	if err != nil {
 		vk.DestroySurface(manager.Instance, manager.Surface, nil)
 		vk.DestroyInstance(manager.Instance, nil)
 		return Manager{}, err
 	}
-	existingExtensions = GetDeviceExtensions(manager.Gpu)
-	slog.Debug(fmt.Sprintf("Device extensions: %v", existingExtensions))
+
+	existingDeviceExtensions := GetDeviceExtensions(manager.Gpu)
+	if debugSwitch {
+		slog.Debug(fmt.Sprintf("Device has extensions: %v", existingDeviceExtensions))
+	}
+
+	// Verify every user-declared device extension is actually reported by the
+	// selected GPU. vkCreateDevice would otherwise fail with
+	// VK_ERROR_EXTENSION_NOT_PRESENT, which gives no hint about which ones are
+	// missing. Extensions the Manager appends itself (swapchain, portability
+	// subset, display timing) are guarded separately below so they're only
+	// added when present, and therefore aren't checked here.
+	if len(deviceExtensions) > 0 {
+		if ok, missing := containsAll(existingDeviceExtensions, deviceExtensions); !ok {
+			vk.DestroySurface(manager.Instance, manager.Surface, nil)
+			vk.DestroyInstance(manager.Instance, nil)
+			return Manager{}, fmt.Errorf("missing required device extensions %v on GPU %q", missing, gpuName)
+		}
+	}
 
 	queueCreateInfos := []vk.DeviceQueueCreateInfo{{
 		SType:            vk.StructureTypeDeviceQueueCreateInfo,
@@ -157,10 +172,10 @@ func NewManager(appName string, createSurfaceFn CreateSurfaceFunc, opts *DeviceO
 	if manager.Surface != vk.NullSurface {
 		deviceExtensions = append(deviceExtensions, vk.KhrSwapchainExtensionName)
 	}
-	if runtime.GOOS == OSMac && slices.Contains(existingExtensions, vk.KhrPortabilitySubsetExtensionName) {
+	if runtime.GOOS == OSMac && slices.Contains(existingDeviceExtensions, vk.KhrPortabilitySubsetExtensionName) {
 		deviceExtensions = append(deviceExtensions, vk.KhrPortabilitySubsetExtensionName)
 	}
-	if runtime.GOOS == OSAndroid && slices.Contains(existingExtensions, vk.GoogleDisplayTimingExtensionName) {
+	if runtime.GOOS == OSAndroid && slices.Contains(existingDeviceExtensions, vk.GoogleDisplayTimingExtensionName) {
 		deviceExtensions = append(deviceExtensions, vk.GoogleDisplayTimingExtensionName)
 	}
 	deviceExtensions = makeUniqueCStrings(deviceExtensions)
@@ -351,14 +366,19 @@ func getPhysicalDevices(instance vk.Instance) ([]vk.PhysicalDevice, error) {
 	return gpuList, nil
 }
 
-// selectPhysicalDevice scores each enumerated GPU and returns the best match.
-// When minApiVersion > 0, GPUs whose VkPhysicalDeviceProperties.apiVersion is
-// below the threshold are excluded from selection — they're still listed in
-// the log with a [skipped: ...] marker so the failure is diagnosable — and if
-// no GPU qualifies the function returns an error instead of a silent fallback.
-// This keeps ray tracing and other version-gated apps from proceeding with a
-// GPU that would fail at vkCreateDevice time.
-func selectPhysicalDevice(gpus []vk.PhysicalDevice, minApiVersion uint32) (vk.PhysicalDevice, error) {
+// selectPhysicalDevice scores each enumerated GPU and returns the best match
+// along with its reported device name. When minApiVersion > 0, GPUs whose
+// VkPhysicalDeviceProperties.apiVersion is below the threshold are excluded
+// from selection — they're still listed in the log with a [skipped: ...]
+// marker so the failure is diagnosable — and if no GPU qualifies the function
+// returns an error instead of a silent fallback. This keeps ray tracing and
+// other version-gated apps from proceeding with a GPU that would fail at
+// vkCreateDevice time.
+//
+// The name is returned alongside the handle so callers can include it in
+// diagnostics (e.g. extension-missing errors) without a second
+// vkGetPhysicalDeviceProperties round-trip.
+func selectPhysicalDevice(gpus []vk.PhysicalDevice, minApiVersion uint32) (vk.PhysicalDevice, string, error) {
 	var bestGPU vk.PhysicalDevice
 	bestName := ""
 	bestType := vk.PhysicalDeviceTypeOther
@@ -420,13 +440,13 @@ func selectPhysicalDevice(gpus []vk.PhysicalDevice, minApiVersion uint32) (vk.Ph
 	}
 
 	if bestScore < 0 {
-		return bestGPU, fmt.Errorf(
+		return bestGPU, "", fmt.Errorf(
 			"no GPU satisfies required Vulkan API version %s",
 			vk.Version(minApiVersion))
 	}
 
 	fmt.Printf("Selected GPU: %s (type=%s, score=%d)\n", bestName, gpuTypes[bestType], bestScore)
-	return bestGPU, nil
+	return bestGPU, bestName, nil
 }
 
 func dbgCallbackFunc(flags vk.DebugReportFlags, objectType vk.DebugReportObjectType, object uint64, location uint64, messageCode int32, pLayerPrefix string, pMessage string, pUserData unsafe.Pointer) vk.Bool32 {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"runtime/metrics"
+	"slices"
 	"time"
 
 	vk "github.com/tomas-mraz/vulkan"
@@ -146,4 +147,14 @@ func StartPrintGCPauses(period time.Duration) {
 			}
 		}
 	}()
+}
+
+func containsAll[T comparable](have, want []T) (bool, []T) {
+	var missing []T
+	for _, v := range want {
+		if !slices.Contains(have, v) {
+			missing = append(missing, v)
+		}
+	}
+	return len(missing) == 0, missing
 }
