@@ -1,11 +1,16 @@
 package ash
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 
 	vk "github.com/tomas-mraz/vulkan"
 )
+
+// ErrSurfaceNotReady indicates that the platform surface exists but does not
+// yet expose a usable extent for swapchain creation.
+var ErrSurfaceNotReady = errors.New("surface not ready")
 
 type Swapchain struct {
 	manager *Manager
@@ -71,9 +76,7 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 		swapchain.DisplaySize = windowSize
 		slog.Debug("[wayland specific] surface extent size is not set, using window size")
 	} else if surfaceCapabilities.CurrentExtent.Width == 0 && surfaceCapabilities.CurrentExtent.Height == 0 {
-		// Android-specific not yet ready surface
-		swapchain.DisplaySize = windowSize
-		slog.Debug("[android specific] surface extent size is 0x0, using window size")
+		return swapchain, ErrSurfaceNotReady
 	} else {
 		swapchain.DisplaySize = surfaceCapabilities.CurrentExtent
 	}

@@ -2,6 +2,7 @@ package ash
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	vk "github.com/tomas-mraz/vulkan"
 )
@@ -13,11 +14,15 @@ type SwapchainRecreateFunc func(swap *Swapchain) error
 // SwapchainContext is a lightweight orchestration object for frame presentation.
 // It centralizes Acquire/Present result handling and coordinates swapchain recreation,
 // but it does not own the Manager or Swapchain it references.
+//
+// needsRecreate is atomic because producers (platform event threads, e.g. Android's
+// NativeWindowRedrawNeeded) may request recreation while the render goroutine observes
+// the flag at frame boundaries.
 type SwapchainContext struct {
-	manager        *Manager
-	swapchain      *Swapchain
-	displayTiming  *DisplayTiming
-	needsRecreate  bool
+	manager       *Manager
+	swapchain     *Swapchain
+	displayTiming *DisplayTiming
+	needsRecreate atomic.Bool
 }
 
 // NewSwapchainContext groups the common swapchain dependencies without taking ownership.
@@ -46,19 +51,22 @@ func (s *SwapchainContext) GetSwapchain() *Swapchain {
 
 // NeedsRecreate reports whether AcquireNextImage or PresentImage observed that the
 // swapchain is suboptimal/out of date, or whether recreation was requested explicitly.
+// Safe to call from any goroutine.
 func (s *SwapchainContext) NeedsRecreate() bool {
 	if s == nil {
 		return false
 	}
-	return s.needsRecreate
+	return s.needsRecreate.Load()
 }
 
 // RequestRecreate marks the swapchain as needing a recreation on the next frame boundary.
+// Safe to call from any goroutine; typically invoked by the platform event loop when it
+// observes a window size / orientation change (e.g. Android NativeWindowRedrawNeeded).
 func (s *SwapchainContext) RequestRecreate() {
 	if s == nil {
 		return
 	}
-	s.needsRecreate = true
+	s.needsRecreate.Store(true)
 }
 
 // AcquireNextImage acquires the next swapchain image and classifies WSI warnings centrally.
@@ -78,7 +86,7 @@ func (s *SwapchainContext) AcquireNextImage(timeout uint64, semaphore vk.Semapho
 	result := vk.AcquireNextImage(s.manager.Device, s.swapchain.DefaultSwapchain(), timeout, semaphore, fence, &imageIndex)
 	acquired, recreate, err := classifySwapchainResult(result)
 	if recreate {
-		s.needsRecreate = true
+		s.needsRecreate.Store(true)
 	}
 	if err != nil {
 		return 0, false, fmt.Errorf("vk.AcquireNextImage failed with %w", err)
@@ -114,7 +122,7 @@ func (s *SwapchainContext) PresentImage(imageIndex uint32, waitSemaphores []vk.S
 	result := vk.QueuePresent(s.manager.Queue, &presentInfo)
 	presented, recreate, err := classifySwapchainResult(result)
 	if recreate {
-		s.needsRecreate = true
+		s.needsRecreate.Store(true)
 	}
 	if err != nil {
 		return false, fmt.Errorf("vk.QueuePresent failed with %w", err)
@@ -154,7 +162,10 @@ func (s *SwapchainContext) Recreate(windowSize vk.Extent2D, recreateFn Swapchain
 
 	oldSwap.Destroy()
 	*s.swapchain = swap
-	s.needsRecreate = false
+	s.needsRecreate.Store(false)
+	if s.displayTiming != nil {
+		s.displayTiming.Rebind(s.swapchain.DefaultSwapchain())
+	}
 	return nil
 }
 

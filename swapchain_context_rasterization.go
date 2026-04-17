@@ -9,9 +9,21 @@ import (
 
 // RasterizationRecreateConfig describes the rasterization resources that should
 // be recreated together with the swapchain.
+//
+// Depth handling has two modes:
+//   - Self-managed: Depth == nil and DepthFormat == 0. The caller manages depth
+//     externally; the framework uses DepthView (may be NullImageView) when attaching
+//     the depth slot to framebuffers, and creates a color-only render pass when
+//     DepthView is null.
+//   - Framework-managed: Depth != nil and DepthFormat != 0. The framework (re)creates
+//     a depth image sized to the new swapchain, writes it through the Depth pointer,
+//     destroys the previous depth image, and attaches its view to the framebuffers.
+//     DepthView is ignored in this mode.
 type RasterizationRecreateConfig struct {
 	QueueFamilyIndex uint32
 	DepthView        vk.ImageView
+	DepthFormat      vk.Format
+	Depth            *ImageResource
 	PipelineOptions  PipelineOptions
 }
 
@@ -86,7 +98,8 @@ func (s *SwapchainContext) PresentImageRasterization(
 }
 
 // rasterizationRecreateFunc builds a SwapchainRecreateFunc that recreates
-// rasterization-specific resources: render pass, framebuffers, command context, pipeline.
+// rasterization-specific resources: render pass, framebuffers, command context, pipeline,
+// and optionally the depth image when cfg.Depth is non-nil.
 func rasterizationRecreateFunc(
 	s *SwapchainContext,
 	rasterPass *RasterizationPass,
@@ -97,29 +110,71 @@ func rasterizationRecreateFunc(
 	return func(swap *Swapchain) error {
 		log.Printf("Recreating rasterization resources: %dx%d", swap.DisplaySize.Width, swap.DisplaySize.Height)
 
-		rp, err := NewRasterPass(s.manager.Device, swap.DisplayFormat)
+		manageDepth := cfg.Depth != nil && cfg.DepthFormat != 0
+
+		// Depth image: rebuild first so framebuffers can reference the new view.
+		var newDepth ImageResource
+		var depthView vk.ImageView = cfg.DepthView
+		if manageDepth {
+			d, err := NewImageDepth(s.manager.Device, s.manager.Gpu, swap.DisplaySize.Width, swap.DisplaySize.Height, cfg.DepthFormat)
+			if err != nil {
+				return err
+			}
+			newDepth = d
+			depthView = d.GetView()
+		}
+
+		// Render pass: include depth attachment only when a depth view is available.
+		var rp RasterizationPass
+		var err error
+		if depthView != vk.NullImageView {
+			depthFmt := cfg.DepthFormat
+			if manageDepth {
+				depthFmt = newDepth.GetFormat()
+			}
+			rp, err = NewRasterPassWithDepth(s.manager.Device, swap.DisplayFormat, depthFmt)
+		} else {
+			rp, err = NewRasterPass(s.manager.Device, swap.DisplayFormat)
+		}
 		if err != nil {
+			if manageDepth {
+				newDepth.Destroy()
+			}
 			return err
 		}
-		if err := swap.CreateFramebuffers(rp.GetRenderPass(), cfg.DepthView); err != nil {
+
+		if err := swap.CreateFramebuffers(rp.GetRenderPass(), depthView); err != nil {
 			rp.Destroy()
+			if manageDepth {
+				newDepth.Destroy()
+			}
 			return err
 		}
 		cc, err := NewCommandContext(s.manager.Device, cfg.QueueFamilyIndex, swap.DefaultSwapchainLen())
 		if err != nil {
 			rp.Destroy()
+			if manageDepth {
+				newDepth.Destroy()
+			}
 			return err
 		}
 		gfx, err := NewPipelineRasterization(s.manager.Device, swap.DisplaySize, rp.GetRenderPass(), cfg.PipelineOptions)
 		if err != nil {
 			cc.Destroy()
 			rp.Destroy()
+			if manageDepth {
+				newDepth.Destroy()
+			}
 			return err
 		}
 
 		rasterPass.Destroy()
 		cmdCtx.Destroy()
 		pipeline.Destroy()
+		if manageDepth {
+			cfg.Depth.Destroy()
+			*cfg.Depth = newDepth
+		}
 
 		*rasterPass = rp
 		*cmdCtx = cc

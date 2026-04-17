@@ -54,6 +54,25 @@ func (dt *DisplayTiming) IsEnabled() bool {
 	return dt != nil && dt.enabled
 }
 
+// Rebind updates the swapchain handle after a swapchain recreation.
+// Past-presentation timing state is reset because it belongs to the old swapchain.
+func (dt *DisplayTiming) Rebind(swapchain vk.Swapchain) {
+	if dt == nil {
+		return
+	}
+	dt.swapchain = swapchain
+	dt.targetTime = 0
+	dt.presentID = 0
+	if !dt.enabled {
+		return
+	}
+	var props vk.RefreshCycleDurationGOOGLE
+	if ret := vk.GetRefreshCycleDurationGOOGLE(dt.device, swapchain, &props); ret == vk.Success {
+		props.Deref()
+		dt.refreshDuration = props.RefreshDuration
+	}
+}
+
 // GetRefreshDuration returns the display refresh cycle in nanoseconds.
 // Returns 0 when display timing is disabled.
 func (dt *DisplayTiming) GetRefreshDuration() uint64 {

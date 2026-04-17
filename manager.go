@@ -235,6 +235,30 @@ func NewExtentSize(width, height int) vk.Extent2D {
 	}
 }
 
+// QuerySurfaceExtent returns the current platform surface extent reported by the driver.
+// On Android this reflects rotation-induced size changes after a config change event.
+// Falls back to the provided extent when the capabilities query fails or when the
+// driver returns the Wayland-style "undefined" extent (all-ones) or a zero extent.
+func (v *Manager) QuerySurfaceExtent(fallback vk.Extent2D) vk.Extent2D {
+	if v == nil || v.Surface == vk.NullSurface || v.Gpu == nil {
+		return fallback
+	}
+	var caps vk.SurfaceCapabilities
+	if err := vk.Error(vk.GetPhysicalDeviceSurfaceCapabilities(v.Gpu, v.Surface, &caps)); err != nil {
+		return fallback
+	}
+	caps.Deref()
+	caps.CurrentExtent.Deref()
+	w, h := caps.CurrentExtent.Width, caps.CurrentExtent.Height
+	if w == vk.MaxUint32 && h == vk.MaxUint32 {
+		return fallback
+	}
+	if w == 0 || h == 0 {
+		return fallback
+	}
+	return vk.Extent2D{Width: w, Height: h}
+}
+
 func GetDeviceExtensions(gpu vk.PhysicalDevice) (extNames []string) {
 	var deviceExtLen uint32
 	ret := vk.EnumerateDeviceExtensionProperties(gpu, "", &deviceExtLen, nil)
