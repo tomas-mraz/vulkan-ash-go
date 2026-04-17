@@ -266,6 +266,17 @@ func (s *Session) setupDevice(r Renderer, hint vk.Extent2D) (err error) {
 		return fmt.Errorf("InitVulkan: %w", err)
 	}
 
+	// When the caller declared a required Vulkan API version (typical for ray
+	// tracing, which needs 1.2 to access buffer device address / AS / RT
+	// pipeline extensions), fail fast with a clear message if the installed
+	// loader is older — instead of letting vkCreateInstance produce the less
+	// informative VK_ERROR_INCOMPATIBLE_DRIVER.
+	if s.Opts.DeviceOptions != nil && s.Opts.DeviceOptions.ApiVersion != 0 {
+		if err := RequireInstanceApiVersion(s.Opts.DeviceOptions.ApiVersion); err != nil {
+			return err
+		}
+	}
+
 	opts := s.Opts.DeviceOptions
 	if opts == nil {
 		opts = &DeviceOptions{}

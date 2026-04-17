@@ -299,6 +299,28 @@ func CheckDeviceApiVersion(gpu vk.PhysicalDevice, minVersion uint32) (ok bool, d
 	return props.ApiVersion >= minVersion, props.ApiVersion
 }
 
+// RequireInstanceApiVersion ensures the installed Vulkan loader supports at
+// least minVersion. Must be called after vk.Init — i.e. after Host.InitVulkan
+// or its manual equivalent — because it depends on the dispatch table.
+//
+// Returns a descriptive error when the loader is older, which gives callers a
+// clearer failure mode than the raw VK_ERROR_INCOMPATIBLE_DRIVER that
+// vkCreateInstance would otherwise produce if ApplicationInfo.ApiVersion is
+// higher than the loader supports. Pre-1.1 loaders don't expose
+// vkEnumerateInstanceVersion; in that case Result != Success and we fall back
+// to reporting 1.0, which is the spec-defined default.
+func RequireInstanceApiVersion(minVersion uint32) error {
+	var actual uint32
+	if ret := vk.EnumerateInstanceVersion(&actual); ret != vk.Success || actual == 0 {
+		actual = vk.MakeVersion(1, 0, 0)
+	}
+	if actual < minVersion {
+		return fmt.Errorf("Vulkan %s required, instance loader reports %s",
+			vk.Version(minVersion), vk.Version(actual))
+	}
+	return nil
+}
+
 func getInstanceExtensions() (extNames []string) {
 	var instanceExtLen uint32
 	ret := vk.EnumerateInstanceExtensionProperties("", &instanceExtLen, nil)
