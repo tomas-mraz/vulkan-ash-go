@@ -325,12 +325,21 @@ func (s *Session) setupDevice(r Renderer, hint vk.Extent2D) (err error) {
 	s.Sync = &sync
 
 	if s.Opts.EnableTiming {
-		// VK_GOOGLE_display_timing is currently only enabled on Android by
-		// Manager; calling its entry points on platforms where it isn't
-		// loaded crashes in cgo. Guard on actual device support.
+		// Manager currently only enables VK_GOOGLE_display_timing on Android.
+		// Calling its entry points on platforms where it isn't loaded crashes in cgo. Guard on actual device support.
 		if ok, _ := CheckDeviceExtensions(mgr.Gpu, []string{vk.GoogleDisplayTimingExtensionName}); ok {
 			dt := NewDisplayTiming(mgr.Device, s.Swapchain.DefaultSwapchain())
 			s.DisplayTiming = &dt
+			if debugSwitch {
+				if dt.IsEnabled() {
+					slog.Info("DisplayTiming activated", "refreshDuration_ns", dt.GetRefreshDuration())
+				} else {
+					// Extension advertised but GetRefreshCycleDurationGOOGLE failed — rare driver quirk; timing stays disabled.
+					slog.Info("DisplayTiming extension present but init failed")
+				}
+			}
+		} else if debugSwitch {
+			slog.Info("DisplayTiming skipped: extension VK_GOOGLE_display_timing not supported by GPU")
 		}
 	}
 
