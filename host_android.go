@@ -27,6 +27,7 @@ type androidHost struct {
 	events chan HostEvent
 
 	nativeWindowEvents chan app.NativeWindowEvent
+	contentRectEvents  chan app.ContentRectEvent
 	inputQueueEvents   chan app.InputQueueEvent
 	inputQueueChan     chan *android.InputQueue
 
@@ -44,6 +45,7 @@ func NewAndroidHost(a app.NativeActivity) Host {
 		activity:           a,
 		events:             make(chan HostEvent, 8),
 		nativeWindowEvents: make(chan app.NativeWindowEvent),
+		contentRectEvents:  make(chan app.ContentRectEvent, 1),
 		inputQueueEvents:   make(chan app.InputQueueEvent, 1),
 		inputQueueChan:     make(chan *android.InputQueue, 1),
 	}
@@ -66,6 +68,7 @@ func (h *androidHost) Start() error {
 	h.started = true
 
 	h.activity.HandleNativeWindowEvents(h.nativeWindowEvents)
+	h.activity.HandleContentRectEvents(h.contentRectEvents)
 	h.activity.HandleInputQueueEvents(h.inputQueueEvents)
 	go app.HandleInputQueues(h.inputQueueChan, func() {
 		h.activity.InputQueueHandled()
@@ -127,6 +130,23 @@ func (h *androidHost) demux() {
 					Extent: windowExtent(ev.Window),
 				}
 				h.activity.NativeWindowRedrawDone()
+			}
+
+		case ev := <-h.contentRectEvents:
+			// IME show/hide, system bar toggle, split-screen or rotation can
+			// shrink the drawable area without destroying the native window.
+			// Emit SurfaceInvalidated so the Session rebuilds the swapchain;
+			// RequestRecreate is idempotent so a coincident NativeWindowRedrawNeeded
+			// only results in a single rebuild.
+			if ev.Rect == nil {
+				continue
+			}
+			h.events <- HostEvent{
+				Kind: HostEventSurfaceInvalidated,
+				Extent: vk.Extent2D{
+					Width:  uint32(ev.Rect.Right - ev.Rect.Left),
+					Height: uint32(ev.Rect.Bottom - ev.Rect.Top),
+				},
 			}
 		}
 	}
