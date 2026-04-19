@@ -62,10 +62,28 @@ type Renderer interface {
 	Draw(s *Session, f *Frame) error
 }
 
+// Orientation describes the device orientation the app expects to render in.
+// Intended for RAYTRACING samples, which cannot cheaply pre-rotate in the
+// raygen shader and instead refuse to render when the device is held in a
+// non-primary orientation. Rasterization samples use Swapchain.PreRotationMatrix
+// and leave this at the default (OrientationAny).
+type Orientation int
+
+const (
+	// OrientationAny disables the orientation check: every frame renders
+	// through Renderer.Draw regardless of device orientation. This is the
+	// default and matches the pre-SetPrimaryOrientation behavior, used by
+	// all rasterization samples.
+	OrientationAny Orientation = iota
+	OrientationLandscape
+	OrientationPortrait
+)
+
 // SessionOptions configures device creation for NewSession.
 type SessionOptions struct {
-	DeviceOptions *DeviceOptions
-	EnableTiming  bool // enable VK_GOOGLE_display_timing when available
+	DeviceOptions    *DeviceOptions
+	SwapchainOptions SwapchainOptions
+	EnableTiming     bool // enable VK_GOOGLE_display_timing when available
 }
 
 // Session owns the whole Vulkan stack (instance, device, swapchain, command
@@ -107,6 +125,24 @@ type Session struct {
 	// that foregrounding doesn't pay a full re-init cost, and rendering resumes
 	// from the same Renderer state.
 	paused bool
+
+	// primaryOrientation, when not OrientationAny, gates each frame: if the
+	// swapchain's user-visible orientation disagrees, the Session paints the
+	// swapchain red instead of invoking Renderer.Draw. Intended for RAYTRACING
+	// samples that cannot apply a per-frame pre-rotation matrix.
+	// Rasterization samples leave this at OrientationAny (the default).
+	primaryOrientation Orientation
+}
+
+// SetPrimaryOrientation declares the orientation the app is designed to render
+// in. On mismatch the Session paints the swapchain red and skips Renderer.Draw.
+// Pass OrientationAny to disable the check. Safe to call before Run; changing
+// it mid-run is not supported.
+//
+// Intended for RAYTRACING samples (see the Orientation type doc). Rasterization
+// samples should not call this — they handle rotation via PreRotationMatrix.
+func (s *Session) SetPrimaryOrientation(o Orientation) {
+	s.primaryOrientation = o
 }
 
 // NewSession returns a Session bound to the given Host. NewSession does not
@@ -306,7 +342,7 @@ func (s *Session) setupDevice(r Renderer, hint vk.Extent2D) (err error) {
 		}
 	}()
 
-	swap, err := NewSwapchain(&mgr, hint)
+	swap, err := NewSwapchain(&mgr, hint, s.Opts.SwapchainOptions)
 	if err != nil {
 		return fmt.Errorf("NewSwapchain: %w", err)
 	}
@@ -421,10 +457,18 @@ func (s *Session) renderFrame(r Renderer) error {
 		Extent:     s.Swapchain.DisplaySize,
 		Swapchain:  s.Swapchain,
 	}
-	if err := r.Draw(s, frame); err != nil {
-		// Still close the command buffer cleanly so Vulkan doesn't complain.
-		_ = s.EndFrame(cmd)
-		return fmt.Errorf("renderer.Draw: %w", err)
+	if s.isPrimaryOrientation() {
+		if err := r.Draw(s, frame); err != nil {
+			// Still close the command buffer cleanly so Vulkan doesn't complain.
+			_ = s.EndFrame(cmd)
+			return fmt.Errorf("renderer.Draw: %w", err)
+		}
+	} else {
+		// RT-only path: device held in non-primary orientation, skip the
+		// renderer and paint the swapchain red. Rasterization samples never
+		// hit this branch because they leave primaryOrientation at
+		// OrientationAny and isPrimaryOrientation always returns true.
+		s.Swapchain.CmdClearToRed(cmd, imageIndex)
 	}
 
 	if err := s.EndFrame(cmd); err != nil {
@@ -610,6 +654,32 @@ func (s *Session) SubmitRender(cmd vk.CommandBuffer, fence vk.Fence, waitSemapho
 		return fmt.Errorf("WaitForFences: %w", err)
 	}
 	return nil
+}
+
+// isPrimaryOrientation reports whether the swapchain's user-visible orientation
+// matches the app-declared primary. Returns true when the check is disabled
+// (OrientationAny) or when the swapchain is square. The computation swaps width
+// and height if preTransform rotates 90/270, so it also works for apps that did
+// not opt into PreferIdentityTransform — those just have the swap baked in.
+func (s *Session) isPrimaryOrientation() bool {
+	if s.primaryOrientation == OrientationAny {
+		return true
+	}
+	if s.Swapchain == nil {
+		return true
+	}
+	w, h := s.Swapchain.DisplaySize.Width, s.Swapchain.DisplaySize.Height
+	switch s.Swapchain.PreTransform {
+	case vk.SurfaceTransformRotate90Bit, vk.SurfaceTransformRotate270Bit:
+		w, h = h, w
+	}
+	switch s.primaryOrientation {
+	case OrientationLandscape:
+		return w >= h
+	case OrientationPortrait:
+		return h >= w
+	}
+	return true
 }
 
 func classifySwapchainResult(result vk.Result) (ok bool, recreate bool, err error) {

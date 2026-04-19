@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"unsafe"
 
 	vk "github.com/tomas-mraz/vulkan"
 )
@@ -12,8 +13,27 @@ import (
 // yet expose a usable extent for swapchain creation.
 var ErrSurfaceNotReady = errors.New("surface not ready")
 
+// SwapchainOptions tunes swapchain creation. Zero value keeps the default
+// behavior (preTransform = surfaceCapabilities.CurrentTransform), which is
+// what rasterization samples rely on — they handle Android surface rotation
+// by multiplying Swapchain.PreRotationMatrix() into the projection inside
+// their vertex shader path.
+type SwapchainOptions struct {
+	// PreferIdentityTransform is intended for RAYTRACING samples. When true
+	// and the surface advertises IDENTITY as supported, the swapchain is
+	// created with preTransform = IDENTITY and the compositor performs any
+	// rotation at scan-out. The app then renders in user-visible orientation
+	// and the RT storage image dimensions match what the user sees, so there
+	// is no need for a per-frame pre-rotation matrix in raygen.
+	//
+	// Rasterization samples (e.g. 05_cube) should leave this false and keep
+	// using PreRotationMatrix; there is no reason for them to change paths.
+	PreferIdentityTransform bool
+}
+
 type Swapchain struct {
 	manager *Manager
+	opts    SwapchainOptions
 
 	Swapchains   []vk.Swapchain
 	SwapchainLen []uint32
@@ -28,8 +48,8 @@ type Swapchain struct {
 	swapchainImages []vk.Image // cached for CmdCopyToSwapchain
 }
 
-func NewSwapchain(manager *Manager, windowSize vk.Extent2D) (Swapchain, error) {
-	return newSwapchain(manager, windowSize, vk.NullSwapchain)
+func NewSwapchain(manager *Manager, windowSize vk.Extent2D, opts SwapchainOptions) (Swapchain, error) {
+	return newSwapchain(manager, windowSize, vk.NullSwapchain, opts)
 }
 
 // Recreate rebuilds this Swapchain in place with a new target size. The
@@ -44,7 +64,7 @@ func NewSwapchain(manager *Manager, windowSize vk.Extent2D) (Swapchain, error) {
 // (framebuffers, depth image, pipelines) after return.
 func (s *Swapchain) Recreate(windowSize vk.Extent2D) error {
 	old := *s
-	ns, err := newSwapchain(s.manager, windowSize, old.DefaultSwapchain())
+	ns, err := newSwapchain(s.manager, windowSize, old.DefaultSwapchain(), old.opts)
 	if err != nil {
 		return err
 	}
@@ -53,12 +73,14 @@ func (s *Swapchain) Recreate(windowSize vk.Extent2D) error {
 	return nil
 }
 
-func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swapchain) (Swapchain, error) {
+func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swapchain, opts SwapchainOptions) (Swapchain, error) {
 
 	// Phase 1: vk.GetPhysicalDeviceSurfaceCapabilities
 	//			vk.GetPhysicalDeviceSurfaceFormats
 
 	var swapchain Swapchain
+	swapchain.manager = manager
+	swapchain.opts = opts
 	var surfaceCapabilities vk.SurfaceCapabilities
 	err := vk.Error(vk.GetPhysicalDeviceSurfaceCapabilities(manager.Gpu, manager.Surface, &surfaceCapabilities))
 	if err != nil {
@@ -101,6 +123,13 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 		swapchain.DisplaySize = surfaceCapabilities.CurrentExtent
 	}
 	swapchain.PreTransform = surfaceCapabilities.CurrentTransform
+	if opts.PreferIdentityTransform && surfaceCapabilities.SupportedTransforms&vk.SurfaceTransformFlags(vk.SurfaceTransformIdentityBit) != 0 {
+		// IDENTITY offloads rotation to the compositor. On Android the driver
+		// may also swap reported DisplaySize to the user-visible orientation
+		// when the swapchain is created with IDENTITY; we honor whatever the
+		// driver picks since ImageExtent below must match a supported value.
+		swapchain.PreTransform = vk.SurfaceTransformIdentityBit
+	}
 	slog.Debug(fmt.Sprintf("final display size is %d x %d, preTransform=%d", swapchain.DisplaySize.Width, swapchain.DisplaySize.Height, swapchain.PreTransform))
 
 	swapchainCreateInfo := vk.SwapchainCreateInfo{
@@ -136,7 +165,6 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 	for i := range formats {
 		formats[i].Free()
 	}
-	swapchain.manager = manager
 	return swapchain, nil
 }
 
@@ -282,6 +310,41 @@ func (s *Swapchain) CmdCopyToSwapchain(cmd vk.CommandBuffer, srcImage vk.Image, 
 			SType: vk.StructureTypeImageMemoryBarrier, OldLayout: vk.ImageLayoutTransferSrcOptimal, NewLayout: vk.ImageLayoutGeneral,
 			Image: srcImage, SubresourceRange: subresourceRange,
 			SrcAccessMask: vk.AccessFlags(vk.AccessTransferReadBit), DstAccessMask: vk.AccessFlags(vk.AccessShaderWriteBit),
+			SrcQueueFamilyIndex: vk.QueueFamilyIgnored, DstQueueFamilyIndex: vk.QueueFamilyIgnored,
+		}})
+}
+
+// CmdClearToRed records commands that clear the swapchain image at imageIndex
+// to solid red and leave it in PresentSrc layout, replacing an entire normal
+// render pass. Used by Session to paint "wrong orientation" frames when a
+// RAYTRACING sample has declared a primary orientation via
+// Session.SetPrimaryOrientation. Rasterization samples don't invoke this path;
+// they handle rotation with PreRotationMatrix inside their shader.
+func (s *Swapchain) CmdClearToRed(cmd vk.CommandBuffer, imageIndex uint32) {
+	swapImages := s.getSwapchainImages()
+	dstImage := swapImages[imageIndex]
+	subresourceRange := vk.ImageSubresourceRange{
+		AspectMask: vk.ImageAspectFlags(vk.ImageAspectColorBit), LevelCount: 1, LayerCount: 1,
+	}
+
+	vk.CmdPipelineBarrier(cmd,
+		vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit), vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit),
+		0, 0, nil, 0, nil, 1, []vk.ImageMemoryBarrier{{
+			SType: vk.StructureTypeImageMemoryBarrier, OldLayout: vk.ImageLayoutUndefined, NewLayout: vk.ImageLayoutTransferDstOptimal,
+			Image: dstImage, SubresourceRange: subresourceRange, DstAccessMask: vk.AccessFlags(vk.AccessTransferWriteBit),
+			SrcQueueFamilyIndex: vk.QueueFamilyIgnored, DstQueueFamilyIndex: vk.QueueFamilyIgnored,
+		}})
+
+	// ClearColorValue is a raw byte union in the binding; write the float32 variant directly.
+	var red vk.ClearColorValue
+	*(*[4]float32)(unsafe.Pointer(&red)) = [4]float32{1, 0, 0, 1}
+	vk.CmdClearColorImage(cmd, dstImage, vk.ImageLayoutTransferDstOptimal, &red, 1, []vk.ImageSubresourceRange{subresourceRange})
+
+	vk.CmdPipelineBarrier(cmd,
+		vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit), vk.PipelineStageFlags(vk.PipelineStageAllCommandsBit),
+		0, 0, nil, 0, nil, 1, []vk.ImageMemoryBarrier{{
+			SType: vk.StructureTypeImageMemoryBarrier, OldLayout: vk.ImageLayoutTransferDstOptimal, NewLayout: vk.ImageLayoutPresentSrc,
+			Image: dstImage, SubresourceRange: subresourceRange, SrcAccessMask: vk.AccessFlags(vk.AccessTransferWriteBit),
 			SrcQueueFamilyIndex: vk.QueueFamilyIgnored, DstQueueFamilyIndex: vk.QueueFamilyIgnored,
 		}})
 }
