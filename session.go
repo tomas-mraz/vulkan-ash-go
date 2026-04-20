@@ -330,16 +330,14 @@ func (s *Session) setupDevice(r Renderer, hint vk.Extent2D) (err error) {
 		if ok, _ := CheckDeviceExtensions(mgr.Gpu, []string{vk.GoogleDisplayTimingExtensionName}); ok {
 			dt := NewDisplayTiming(mgr.Device, s.Swapchain.DefaultSwapchain())
 			s.DisplayTiming = &dt
-			if debugSwitch {
-				if dt.IsEnabled() {
-					slog.Info("DisplayTiming activated", "refreshDuration_ns", dt.GetRefreshDuration())
-				} else {
-					// Extension advertised but GetRefreshCycleDurationGOOGLE failed — rare driver quirk; timing stays disabled.
-					slog.Info("DisplayTiming extension present but init failed")
-				}
+			if dt.IsEnabled() {
+				slog.Debug("DisplayTiming activated", "refreshDuration_ns", dt.GetRefreshDuration())
+			} else {
+				// Extension advertised but GetRefreshCycleDurationGOOGLE failed — rare driver quirk; timing stays disabled.
+				slog.Debug("DisplayTiming extension present but init failed")
 			}
-		} else if debugSwitch {
-			slog.Info("DisplayTiming skipped: extension VK_GOOGLE_display_timing not supported by GPU")
+		} else {
+			slog.Debug("DisplayTiming skipped: extension VK_GOOGLE_display_timing not supported by GPU")
 		}
 	}
 

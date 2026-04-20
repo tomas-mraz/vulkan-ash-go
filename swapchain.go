@@ -88,7 +88,6 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 	// Phase 2: vk.CreateSwapchain
 
 	surfaceCapabilities.Deref()
-	slog.Debug(fmt.Sprintf("NewSwapchain surfaceCapabilities %v", surfaceCapabilities))
 	swapchain.DisplayFormat = formats[chosenFormat].Format
 
 	surfaceCapabilities.CurrentExtent.Deref()

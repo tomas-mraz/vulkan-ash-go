@@ -3,6 +3,7 @@ package ash
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"math"
 	"runtime/metrics"
 	"slices"
@@ -124,11 +125,11 @@ func printGCPauses() {
 		}
 		count := hist.Counts[i]
 		if count > 0 {
-			fmt.Printf("GC histogram range [%4.0f - %4.0f µs]: %d×\n", low, high, count)
+			slog.Debug(fmt.Sprintf("GC histogram range [%4.0f - %4.0f µs]: %d×\n", low, high, count))
 		}
 		totalPauses += count
 	}
-	fmt.Printf("GC total cycles: %d pauses: %d\n", cycles, totalPauses)
+	slog.Debug(fmt.Sprintf("GC total cycles: %d pauses: %d\n", cycles, totalPauses))
 }
 
 // StartPrintGCPauses every 10 seconds prints to std output information about GC
