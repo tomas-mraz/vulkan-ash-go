@@ -107,6 +107,8 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 		return swapchain, err
 	}
 
+	presentMode, minImages := choosePresentMode(manager.Gpu, manager.Surface, surfaceCapabilities)
+
 	// Phase 2: vk.CreateSwapchain
 
 	surfaceCapabilities.Deref()
@@ -135,7 +137,7 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 	swapchainCreateInfo := vk.SwapchainCreateInfo{
 		SType:            vk.StructureTypeSwapchainCreateInfo,
 		Surface:          manager.Surface,
-		MinImageCount:    surfaceCapabilities.MinImageCount,
+		MinImageCount:    minImages,
 		ImageFormat:      formats[chosenFormat].Format,
 		ImageColorSpace:  formats[chosenFormat].ColorSpace,
 		ImageExtent:      swapchain.DisplaySize,
@@ -144,7 +146,7 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 		CompositeAlpha:   vk.CompositeAlphaOpaqueBit,
 		ImageArrayLayers: 1,
 		ImageSharingMode: vk.SharingModeExclusive,
-		PresentMode:      vk.PresentModeFifo,
+		PresentMode:      presentMode,
 		OldSwapchain:     oldSwapchain,
 		Clipped:          vk.False,
 	}
@@ -166,6 +168,52 @@ func newSwapchain(manager *Manager, windowSize vk.Extent2D, oldSwapchain vk.Swap
 		formats[i].Free()
 	}
 	return swapchain, nil
+}
+
+// choosePresentMode picks the lowest-latency mode the driver supports.
+// Preference order: IMMEDIATE (no vsync, may tear) > MAILBOX (triple-buffered,
+// no vblank block) > FIFO (spec-guaranteed fallback). IMMEDIATE is the most
+// effective against presentation stutter on compositors that miss vblanks,
+// at the cost of possible tearing on horizontal motion.
+func choosePresentMode(gpu vk.PhysicalDevice, surface vk.Surface, caps vk.SurfaceCapabilities) (vk.PresentMode, uint32) {
+	var count uint32
+	vk.GetPhysicalDeviceSurfacePresentModes(gpu, surface, &count, nil)
+	modes := make([]vk.PresentMode, count)
+	vk.GetPhysicalDeviceSurfacePresentModes(gpu, surface, &count, modes)
+
+	supportsImmediate := false
+	supportsMailbox := false
+	for _, m := range modes {
+		switch m {
+		case vk.PresentModeImmediate:
+			supportsImmediate = true
+		case vk.PresentModeMailbox:
+			supportsMailbox = true
+		}
+	}
+
+	min := caps.MinImageCount
+	max := caps.MaxImageCount // 0 means "no upper bound"
+
+	if supportsImmediate {
+		slog.Debug("swapchain present mode", "mode", "IMMEDIATE", "min_images", min)
+		return vk.PresentModeImmediate, min
+	}
+	if supportsMailbox {
+		want := uint32(3)
+		if want < min {
+			want = min
+		}
+		if max != 0 && want > max {
+			want = max
+		}
+		if want >= 3 {
+			slog.Debug("swapchain present mode", "mode", "MAILBOX", "min_images", want)
+			return vk.PresentModeMailbox, want
+		}
+	}
+	slog.Debug("swapchain present mode", "mode", "FIFO", "min_images", min)
+	return vk.PresentModeFifo, min
 }
 
 func (s *Swapchain) DefaultSwapchain() vk.Swapchain {
