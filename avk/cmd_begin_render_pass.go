@@ -36,12 +36,13 @@ type renderPassBeginInfo struct {
 // CmdBeginRenderPass builds VkRenderPassBeginInfo in arena-owned C memory and
 // reuses that storage across calls after Arena.Reset.
 func CmdBeginRenderPass(arena *Arena, commandBuffer vk.CommandBuffer, begin *vk.RenderPassBeginInfo, contents vk.SubpassContents) {
-	vk.CmdBeginRenderPass(commandBuffer, arenaRenderPassBeginInfo(arena, begin), contents)
+	ref := arenaRenderPassBeginInfo(arena, begin)
+	callCmdBeginRenderPass(commandBuffer, unsafe.Pointer(ref), contents)
 	runtime.KeepAlive(arena)
 	runtime.KeepAlive(begin)
 }
 
-func arenaRenderPassBeginInfo(arena *Arena, begin *vk.RenderPassBeginInfo) *vk.RenderPassBeginInfo {
+func arenaRenderPassBeginInfo(arena *Arena, begin *vk.RenderPassBeginInfo) *renderPassBeginInfo {
 	if begin == nil {
 		return nil
 	}
@@ -75,7 +76,7 @@ func arenaRenderPassBeginInfo(arena *Arena, begin *vk.RenderPassBeginInfo) *vk.R
 		copy(unsafe.Slice((*vk.ClearValue)(ref.pClearValues), len(begin.PClearValues)), begin.PClearValues)
 	}
 
-	return vk.NewRenderPassBeginInfoRef(unsafe.Pointer(ref))
+	return ref
 }
 
 func validateClearValueCount(begin *vk.RenderPassBeginInfo) {

@@ -48,7 +48,7 @@ func TestArenaRenderPassBeginInfoCopiesFields(t *testing.T) {
 	}
 
 	ref := arenaRenderPassBeginInfo(arena, &begin)
-	raw := (*renderPassBeginInfo)(unsafe.Pointer(ref.Ref()))
+	raw := (*renderPassBeginInfo)(unsafe.Pointer(ref))
 
 	if raw.sType != int32(begin.SType) {
 		t.Fatalf("unexpected sType: got %d want %d", raw.sType, begin.SType)

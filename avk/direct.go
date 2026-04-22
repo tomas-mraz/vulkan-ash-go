@@ -5,13 +5,13 @@ package avk
 
 typedef void* VkQueue;
 typedef void* VkCommandBuffer;
-typedef void* VkPipelineLayout;
-typedef void* VkRenderPass;
-typedef void* VkFence;
 
 typedef uint64_t VkBuffer;
 typedef uint64_t VkDeviceSize;
+typedef uint64_t VkFence;
 typedef uint64_t VkFramebuffer;
+typedef uint64_t VkPipelineLayout;
+typedef uint64_t VkRenderPass;
 typedef uint64_t VkSemaphore;
 typedef uint64_t VkSwapchainKHR;
 
@@ -41,6 +41,21 @@ typedef struct VkRect2D {
 	VkOffset2D offset;
 	VkExtent2D extent;
 } VkRect2D;
+
+typedef union VkClearValue {
+	uint32_t uint32_[4];
+	float float32_[4];
+} VkClearValue;
+
+typedef struct VkRenderPassBeginInfo {
+	VkStructureType sType;
+	const void* pNext;
+	VkRenderPass renderPass;
+	VkFramebuffer framebuffer;
+	VkRect2D renderArea;
+	uint32_t clearValueCount;
+	const VkClearValue* pClearValues;
+} VkRenderPassBeginInfo;
 
 typedef struct VkCommandBufferInheritanceInfo {
 	VkStructureType sType;
@@ -119,6 +134,11 @@ extern void callVkCmdPushConstants(
 	uint32_t size,
 	const void* pValues);
 
+extern void callVkCmdBeginRenderPass(
+	VkCommandBuffer commandBuffer,
+	const VkRenderPassBeginInfo* pRenderPassBegin,
+	VkSubpassContents contents);
+
 extern VkResult callVkQueuePresentKHR(
 	VkQueue queue,
 	const VkPresentInfoKHR* pPresentInfo);
@@ -149,6 +169,12 @@ func CmdPushConstants(commandBuffer vk.CommandBuffer, layout vk.PipelineLayout, 
 		pValues,
 	)
 	runtime.KeepAlive(pValues)
+}
+
+func callCmdBeginRenderPass(commandBuffer vk.CommandBuffer, begin unsafe.Pointer, contents vk.SubpassContents) {
+	ccommandBuffer := *(*C.VkCommandBuffer)(unsafe.Pointer(&commandBuffer))
+	cpBegin := (*C.VkRenderPassBeginInfo)(begin)
+	C.callVkCmdBeginRenderPass(ccommandBuffer, cpBegin, C.VkSubpassContents(contents))
 }
 
 func CmdBindVertexBuffers(arena *Arena, commandBuffer vk.CommandBuffer, firstBinding uint32, bindingCount uint32, pBuffers []vk.Buffer, pOffsets []vk.DeviceSize) {
