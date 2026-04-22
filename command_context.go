@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	vk "github.com/tomas-mraz/vulkan"
+	"github.com/tomas-mraz/vulkan-ash/avk"
 )
 
 // CommandContext owns a command pool plus reusable frame command buffers.
@@ -12,6 +13,7 @@ type CommandContext struct {
 	device     vk.Device
 	cmdPool    vk.CommandPool
 	cmdBuffers []vk.CommandBuffer
+	arena      *avk.Arena
 }
 
 // NewCommandContext creates a resettable command pool and optionally allocates
@@ -19,6 +21,7 @@ type CommandContext struct {
 func NewCommandContext(device vk.Device, queueFamilyIndex, commandBufferCount uint32) (CommandContext, error) {
 	var ctx CommandContext
 	ctx.device = device
+	ctx.arena = avk.NewArena()
 
 	err := vk.Error(vk.CreateCommandPool(device, &vk.CommandPoolCreateInfo{
 		SType:            vk.StructureTypeCommandPoolCreateInfo,
@@ -43,6 +46,8 @@ func NewCommandContext(device vk.Device, queueFamilyIndex, commandBufferCount ui
 	if err != nil {
 		vk.DestroyCommandPool(device, ctx.cmdPool, nil)
 		ctx.cmdPool = vk.NullCommandPool
+		ctx.arena.Free()
+		ctx.arena = nil
 		return ctx, fmt.Errorf("vk.AllocateCommandBuffers failed with %s", err)
 	}
 
@@ -72,7 +77,7 @@ func (c *CommandContext) BeginOneTime() (vk.CommandBuffer, error) {
 	}
 
 	cmd := cmds[0]
-	err = vk.Error(vk.BeginCommandBuffer(cmd, &vk.CommandBufferBeginInfo{
+	err = vk.Error(avk.BeginCommandBuffer(c.useArena(), cmd, &vk.CommandBufferBeginInfo{
 		SType: vk.StructureTypeCommandBufferBeginInfo,
 		Flags: vk.CommandBufferUsageFlags(vk.CommandBufferUsageOneTimeSubmitBit),
 	}))
@@ -103,7 +108,7 @@ func (c *CommandContext) EndOneTime(queue vk.Queue, cmd vk.CommandBuffer) error 
 	}
 	defer vk.DestroyFence(c.device, fence, nil)
 
-	err = vk.Error(vk.QueueSubmit(queue, 1, []vk.SubmitInfo{{
+	err = vk.Error(avk.QueueSubmit(c.useArena(), queue, 1, []vk.SubmitInfo{{
 		SType:              vk.StructureTypeSubmitInfo,
 		CommandBufferCount: 1,
 		PCommandBuffers:    []vk.CommandBuffer{cmd},
@@ -129,12 +134,12 @@ func (c *CommandContext) BindRasterPipeline(cmd vk.CommandBuffer, pipeline Pipel
 
 // BindVertexBuffers binds vertex buffers to the command buffer.
 func (c *CommandContext) BindVertexBuffers(cmd vk.CommandBuffer, firstBinding uint32, buffers []vk.Buffer, offsets []vk.DeviceSize) {
-	vk.CmdBindVertexBuffers(cmd, firstBinding, uint32(len(buffers)), buffers, offsets)
+	avk.CmdBindVertexBuffers(c.useArena(), cmd, firstBinding, uint32(len(buffers)), buffers, offsets)
 }
 
 // Draw records a non-indexed draw call.
 func (c *CommandContext) Draw(cmd vk.CommandBuffer, vertexCount, instanceCount, firstVertex, firstInstance uint32) {
-	vk.CmdDraw(cmd, vertexCount, instanceCount, firstVertex, firstInstance)
+	avk.CmdDraw(cmd, vertexCount, instanceCount, firstVertex, firstInstance)
 }
 
 // Destroy frees reusable command buffers and destroys the command pool.
@@ -150,4 +155,17 @@ func (c *CommandContext) Destroy() {
 		vk.DestroyCommandPool(c.device, c.cmdPool, nil)
 		c.cmdPool = vk.NullCommandPool
 	}
+	if c.arena != nil {
+		c.arena.Free()
+		c.arena = nil
+	}
+}
+
+func (c *CommandContext) useArena() *avk.Arena {
+	if c.arena == nil {
+		c.arena = avk.NewArena()
+	} else {
+		c.arena.Reset()
+	}
+	return c.arena
 }

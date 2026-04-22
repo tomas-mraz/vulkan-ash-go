@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	vk "github.com/tomas-mraz/vulkan"
+	"github.com/tomas-mraz/vulkan-ash/avk"
 )
 
 // Frame is a per-frame record handed to Renderer.Draw.
@@ -591,7 +592,7 @@ func (s *Session) PresentImage(imageIndex uint32, waitSemaphores []vk.Semaphore)
 	if s.DisplayTiming != nil {
 		s.DisplayTiming.ChainPresentInfo(&presentInfo)
 	}
-	result := vk.QueuePresent(s.Manager.Queue, &presentInfo)
+	result := avk.QueuePresent(s.CmdCtx.useArena(), s.Manager.Queue, &presentInfo)
 	presented, recreate, err := classifySwapchainResult(result)
 	if recreate {
 		s.needsRecreate.Store(true)
@@ -610,11 +611,11 @@ func (s *Session) BeginFrame(imageIndex uint32) (vk.CommandBuffer, error) {
 		return zero, fmt.Errorf("command buffer index %d out of range %d", imageIndex, len(cmdBuffers))
 	}
 	cmd := cmdBuffers[imageIndex]
-	if err := vk.Error(vk.ResetCommandBuffer(cmd, 0)); err != nil {
+	if err := vk.Error(avk.ResetCommandBuffer(cmd, 0)); err != nil {
 		var zero vk.CommandBuffer
 		return zero, fmt.Errorf("ResetCommandBuffer: %w", err)
 	}
-	if err := vk.Error(vk.BeginCommandBuffer(cmd, &vk.CommandBufferBeginInfo{
+	if err := vk.Error(avk.BeginCommandBuffer(s.CmdCtx.useArena(), cmd, &vk.CommandBufferBeginInfo{
 		SType: vk.StructureTypeCommandBufferBeginInfo,
 	})); err != nil {
 		var zero vk.CommandBuffer
@@ -639,7 +640,7 @@ func (s *Session) SubmitRender(cmd vk.CommandBuffer, fence vk.Fence, waitSemapho
 		waitStages = []vk.PipelineStageFlags{vk.PipelineStageFlags(vk.PipelineStageColorAttachmentOutputBit)}
 	}
 	vk.ResetFences(s.Manager.Device, 1, fences)
-	if err := vk.Error(vk.QueueSubmit(s.Manager.Queue, 1, []vk.SubmitInfo{{
+	if err := vk.Error(avk.QueueSubmit(s.CmdCtx.useArena(), s.Manager.Queue, 1, []vk.SubmitInfo{{
 		SType:              vk.StructureTypeSubmitInfo,
 		WaitSemaphoreCount: uint32(len(waitSemaphores)),
 		PWaitSemaphores:    waitSemaphores,

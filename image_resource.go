@@ -5,6 +5,7 @@ import (
 	"unsafe"
 
 	vk "github.com/tomas-mraz/vulkan"
+	"github.com/tomas-mraz/vulkan-ash/avk"
 )
 
 // ImageResource is a generic Manager image allocation.
@@ -373,6 +374,8 @@ func NewImageDepth(device vk.Device, gpu vk.PhysicalDevice, width, height uint32
 // TransitionImageLayout performs a one-time image layout transition using a temporary command buffer.
 func TransitionImageLayout(device vk.Device, queue vk.Queue, cmdPool vk.CommandPool,
 	image vk.Image, oldLayout, newLayout vk.ImageLayout) {
+	arena := avk.NewArena()
+	defer arena.Free()
 
 	cmds := make([]vk.CommandBuffer, 1)
 	vk.AllocateCommandBuffers(device, &vk.CommandBufferAllocateInfo{
@@ -383,7 +386,7 @@ func TransitionImageLayout(device vk.Device, queue vk.Queue, cmdPool vk.CommandP
 	}, cmds)
 	cmd := cmds[0]
 
-	vk.BeginCommandBuffer(cmd, &vk.CommandBufferBeginInfo{
+	avk.BeginCommandBuffer(arena, cmd, &vk.CommandBufferBeginInfo{
 		SType: vk.StructureTypeCommandBufferBeginInfo,
 		Flags: vk.CommandBufferUsageFlags(vk.CommandBufferUsageOneTimeSubmitBit),
 	})
@@ -428,7 +431,7 @@ func TransitionImageLayout(device vk.Device, queue vk.Queue, cmdPool vk.CommandP
 
 	vk.EndCommandBuffer(cmd)
 
-	vk.QueueSubmit(queue, 1, []vk.SubmitInfo{{
+	avk.QueueSubmit(arena, queue, 1, []vk.SubmitInfo{{
 		SType:              vk.StructureTypeSubmitInfo,
 		CommandBufferCount: 1,
 		PCommandBuffers:    []vk.CommandBuffer{cmd},
