@@ -1,6 +1,7 @@
 package avk
 
 import (
+	"fmt"
 	"runtime"
 	"unsafe"
 
@@ -47,6 +48,7 @@ func arenaRenderPassBeginInfo(arena *Arena, begin *vk.RenderPassBeginInfo) *vk.R
 	if arena == nil {
 		panic("avk: nil arena")
 	}
+	validateClearValueCount(begin)
 
 	ref := (*renderPassBeginInfo)(arena.Alloc(unsafe.Sizeof(renderPassBeginInfo{})))
 	*ref = renderPassBeginInfo{
@@ -74,4 +76,15 @@ func arenaRenderPassBeginInfo(arena *Arena, begin *vk.RenderPassBeginInfo) *vk.R
 	}
 
 	return vk.NewRenderPassBeginInfoRef(unsafe.Pointer(ref))
+}
+
+func validateClearValueCount(begin *vk.RenderPassBeginInfo) {
+	want := uint32(len(begin.PClearValues))
+	if begin.ClearValueCount != want {
+		panic(fmt.Sprintf(
+			"avk: ClearValueCount (%d) must match len(PClearValues) (%d)",
+			begin.ClearValueCount,
+			want,
+		))
+	}
 }

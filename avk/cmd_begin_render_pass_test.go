@@ -77,3 +77,33 @@ func TestArenaRenderPassBeginInfoCopiesFields(t *testing.T) {
 		t.Fatal("expected arena-owned copy of clear values")
 	}
 }
+
+func TestArenaRenderPassBeginInfoPanicsOnClearValueCountMismatch(t *testing.T) {
+	tests := []vk.RenderPassBeginInfo{
+		{
+			ClearValueCount: 1,
+			PClearValues:    nil,
+		},
+		{
+			ClearValueCount: 0,
+			PClearValues: []vk.ClearValue{
+				{1, 2, 3, 4},
+			},
+		},
+	}
+
+	for _, begin := range tests {
+		t.Run("", func(t *testing.T) {
+			arena := NewArenaWithChunkSize(128)
+			defer arena.Free()
+
+			defer func() {
+				if recover() == nil {
+					t.Fatal("expected panic on ClearValueCount mismatch")
+				}
+			}()
+
+			_ = arenaRenderPassBeginInfo(arena, &begin)
+		})
+	}
+}
