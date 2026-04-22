@@ -20,6 +20,10 @@ type arenaBlock struct {
 
 // Arena owns reusable C memory blocks for short-lived Vulkan call data.
 // Call Reset to reuse the blocks, or Free to release them back to libc.
+//
+// An Arena is not safe for concurrent use. Create one Arena per render
+// goroutine (typically one per frame-recording context) and Reset it at
+// the start of each frame.
 type Arena struct {
 	blocks    []arenaBlock
 	blockIdx  int

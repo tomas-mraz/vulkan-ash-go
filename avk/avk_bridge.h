@@ -143,4 +143,10 @@ VkResult callVkQueuePresentKHR(
 	VkQueue queue,
 	const VkPresentInfoKHR* pPresentInfo);
 
+// NOTE: the callVk* functions declared above are *defined* in
+// github.com/tomas-mraz/vulkan/vk_bridge.c and resolved at link time.
+// That package already dynamically loads the Vulkan ICD; this header
+// only re-declares the entry points we bridge, so avk can call them
+// without going through the allocating c-for-go Go wrappers.
+
 #endif
